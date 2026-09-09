@@ -1,5 +1,5 @@
-import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core'
-import { sql } from 'drizzle-orm'
+import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 export const todos = sqliteTable('todos', {
   id: integer({ mode: 'number' }).primaryKey({
@@ -9,4 +9,4 @@ export const todos = sqliteTable('todos', {
   createdAt: integer('created_at', { mode: 'timestamp' }).default(
     sql`(unixepoch())`,
   ),
-})
+});

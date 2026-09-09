@@ -1,0 +1,8 @@
+node_modules
+dist
+.wrangler
+.output
+src/routeTree.gen.ts
+worker-configuration.d.ts
+migrations
+drizzle
