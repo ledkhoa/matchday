@@ -60,6 +60,10 @@ interface CachedToken {
 
 let inMemoryTokenCache: CachedToken | null = null;
 
+export function clearTokenCache(): void {
+  inMemoryTokenCache = null;
+}
+
 const DEFAULT_USER_AGENT = 'web:matchday-bot:v1.0.0 (by /u/matchday_app)';
 
 async function getOAuthToken(

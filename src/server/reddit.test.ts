@@ -3,6 +3,7 @@ import {
   RedditPostDataSchema,
   RedditListingResponseSchema,
   fetchRedditPosts,
+  clearTokenCache,
 } from './reddit';
 
 describe('Reddit Schemas', () => {
@@ -96,6 +97,7 @@ describe('fetchRedditPosts', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    clearTokenCache();
   });
 
   it('returns empty array when rate limited (429)', async () => {

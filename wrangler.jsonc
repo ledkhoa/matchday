@@ -3,11 +3,14 @@
   "name": "matchday",
   "compatibility_date": "2025-09-02",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+  "main": "src/server/entry.ts",
   "observability": {
     "enabled": true,
   },
   "upload_source_maps": true,
+  "triggers": {
+    "crons": ["*/10 * * * *"],
+  },
   "d1_databases": [
     {
       "binding": "DB",
