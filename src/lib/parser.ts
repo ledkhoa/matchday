@@ -20,10 +20,10 @@ const GOAL_TITLE_REGEX =
 const META_THREAD_PREFIX_REGEX =
   /^(?:\[?\s*(?:post[- ]match|match|pre[- ]match)\s*thread\s*\]?|daily discussion|transfer round[- ]up)/i;
 
-/** Extracts trailing minute patterns like 45', 90+2', 120+1', 45+2, 90' */
-const MINUTE_REGEX = /\b(\d+(?:\+\d+)?['′]?)$/;
+/** Extracts trailing minute patterns like 45', 90+2', 90'+4', 120+1', 45+2, 90' */
+const MINUTE_REGEX = /\b(\d+['′]?(?:\+\d+)?['′]?)$/;
 /** Extracts inline minute patterns */
-const INLINE_MINUTE_REGEX = /\b(\d+(?:\+\d+)?['′]?)\b/;
+const INLINE_MINUTE_REGEX = /\b(\d+['′]?(?:\+\d+)?['′]?)\b/;
 /** Extracts trailing parenthesized tags like (Great Goal), (P), (OG), (Penalty) */
 const TAG_REGEX = /\(([^)]+)\)$/;
 

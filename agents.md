@@ -24,12 +24,13 @@ This document defines the universal coding principles, quality gates, failure lo
 
 ## Mistakes & Failure Log
 
-| Date       | Mistake / Issue                                             | Root Cause & Prevention Rule                                                                                                         |
-| :--------- | :---------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-15 | Used deprecated `z.string().url()` instead of `z.url()`     | Always use modern Zod top-level `z.url()` schema instead of the deprecated `z.string().url()`.                                       |
-| 2026-08-15 | Attempted to auto-run `git commit` without explicit request | Never run `git commit` automatically unless the user explicitly asks to commit changes.                                              |
-| 2026-09-09 | Relied on unconstrained media containers causing overflow   | Always wrap dynamic iframes/video tags in Tailwind `aspect-video w-full` containers to preserve 16:9 scaling across mobile displays. |
-| 2026-09-09 | Used `any` type in D1 raw SQL query row mappings            | Strictly declare database row interfaces or use Drizzle ORM infer types (`Match`, `Highlight`) for all query responses.              |
+| Date       | Mistake / Issue                                             | Root Cause & Prevention Rule                                                                                                            |
+| :--------- | :---------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-15 | Used deprecated `z.string().url()` instead of `z.url()`     | Always use modern Zod top-level `z.url()` schema instead of the deprecated `z.string().url()`.                                          |
+| 2026-08-15 | Attempted to auto-run `git commit` without explicit request | Never run `git commit` automatically unless the user explicitly asks to commit changes.                                                 |
+| 2026-09-09 | Relied on unconstrained media containers causing overflow   | Always wrap dynamic iframes/video tags in Tailwind `aspect-video w-full` containers to preserve 16:9 scaling across mobile displays.    |
+| 2026-09-09 | Used `any` type in D1 raw SQL query row mappings            | Strictly declare database row interfaces or use Drizzle ORM infer types (`Match`, `Highlight`) for all query responses.                 |
+| 2026-09-09 | Extracted comment/mirror link instead of submission URL     | Always extract the primary submission target URL (`post.url` or `<shreddit-post content-href>`) and support `streamain` / `streama.in`. |
 
 ---
 

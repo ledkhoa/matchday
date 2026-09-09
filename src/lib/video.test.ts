@@ -62,6 +62,28 @@ describe('resolveVideoEmbed', () => {
     });
   });
 
+  it('resolves streamain.com and streama.in clips to iframe embed', () => {
+    const result1 = resolveVideoEmbed(
+      'https://streamain.com/en/NzwSmy4S1oaJDOh/watch',
+    );
+    expect(result1).toEqual({
+      embedUrl: 'https://streamain.com/embed/NzwSmy4S1oaJDOh',
+      isIframe: true,
+      directVideoUrl: null,
+      fallbackUrl: 'https://streamain.com/en/NzwSmy4S1oaJDOh/watch',
+    });
+
+    const result2 = resolveVideoEmbed(
+      'https://streama.in/NzwSmy4S1oaJDOh/watch',
+    );
+    expect(result2).toEqual({
+      embedUrl: 'https://streamain.com/embed/NzwSmy4S1oaJDOh',
+      isIframe: true,
+      directVideoUrl: null,
+      fallbackUrl: 'https://streama.in/NzwSmy4S1oaJDOh/watch',
+    });
+  });
+
   it('resolves v.redd.it clip to direct video player format', () => {
     const result = resolveVideoEmbed('https://v.redd.it/rdt123');
     expect(result).toEqual({

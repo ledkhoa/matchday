@@ -1,7 +1,11 @@
+import { useState, useEffect } from 'react';
 import { createFileRoute, notFound } from '@tanstack/react-router';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { matchDayQueryOptions } from '../../integrations/tanstack-query/root-provider';
+import { DateNav } from '#/components/DateNav';
+import { MatchCard } from '#/components/MatchCard';
+import { EmptyState } from '#/components/EmptyState';
 
 export const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -42,15 +46,65 @@ export async function loadDateRoute({
   return await context.queryClient.ensureQueryData(matchDayQueryOptions(date));
 }
 
+export function DateRouteComponent() {
+  const { date } = Route.useParams();
+  const { data } = useSuspenseQuery(matchDayQueryOptions(date));
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(
+    null,
+  );
+
+  // Reset active highlight whenever date parameter changes
+  useEffect(() => {
+    setActiveHighlightId(null);
+  }, [date]);
+
+  // Global Escape key listener collapses any currently playing video
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveHighlightId(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      {/* Date Navigation Bar */}
+      <DateNav currentDate={date} />
+
+      {/* Content Feed */}
+      {data.matches.length === 0 ? (
+        <EmptyState date={date} />
+      ) : (
+        <div className="space-y-4 sm:space-y-6">
+          {data.matches.map((match) => (
+            <MatchCard
+              key={match.id}
+              match={match}
+              activeHighlightId={activeHighlightId}
+              onSelectHighlight={(hl) =>
+                setActiveHighlightId((prev) => (prev === hl.id ? null : hl.id))
+              }
+              onCloseHighlight={() => setActiveHighlightId(null)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export const Route = createFileRoute('/date/$date')({
   loader: loadDateRoute,
   notFoundComponent: () => {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center">
-        <h2 className="text-2xl font-bold text-foreground">
+        <h2 className="text-2xl font-bold text-zinc-100">
           Invalid Date Format
         </h2>
-        <p className="mt-2 text-muted-foreground">
+        <p className="mt-2 text-zinc-400">
           The date requested must follow the YYYY-MM-DD calendar format.
         </p>
       </div>
@@ -58,37 +112,3 @@ export const Route = createFileRoute('/date/$date')({
   },
   component: DateRouteComponent,
 });
-
-function DateRouteComponent() {
-  const { date } = Route.useParams();
-  const { data } = useSuspenseQuery(matchDayQueryOptions(date));
-
-  return (
-    <div className="container mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-3xl font-extrabold tracking-tight">
-        Matches for {date}
-      </h1>
-      <p className="mt-2 text-muted-foreground">
-        Found {data.matches.length} matches.
-      </p>
-
-      {/* Full UI cards and highlight players will be mounted in MD-EPIC-5 and MD-EPIC-6 */}
-      <div className="mt-6 space-y-4">
-        {data.matches.map((match) => (
-          <div
-            key={match.id}
-            className="rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm"
-          >
-            <div className="text-lg font-semibold">
-              {match.teamHome} vs {match.teamAway}
-            </div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              {match.highlights.length} highlight
-              {match.highlights.length === 1 ? '' : 's'}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}

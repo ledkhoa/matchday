@@ -1,8 +1,17 @@
 import { describe, it, expect, spyOn } from 'bun:test';
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react';
 import { isNotFound } from '@tanstack/react-router';
 import { QueryClient } from '@tanstack/react-query';
-import { isValidIsoDate, loadDateRoute, Route } from './$date';
+import * as reactQuery from '@tanstack/react-query';
+import {
+  isValidIsoDate,
+  loadDateRoute,
+  Route,
+  DateRouteComponent,
+} from './$date';
 import type { DayMatchesResult } from '../../server/matches';
+import type { MatchWithHighlights } from '#/db/schema';
 
 describe('isValidIsoDate', () => {
   it('returns true for valid ISO calendar dates', () => {
@@ -101,5 +110,87 @@ describe('Date route loader (/date/$date)', () => {
       expect(rendered).toBeDefined();
       expect(JSON.stringify(rendered)).toContain('Invalid Date Format');
     }
+  });
+});
+
+describe('DateRouteComponent integration', () => {
+  it('renders DateNav and EmptyState when matches array is empty', () => {
+    const paramsSpy = spyOn(Route, 'useParams').mockReturnValue({
+      date: '2026-09-09',
+    });
+    // SAFETY: Mocking TanStack useSuspenseQuery return payload for integration test
+    const querySpy = spyOn(reactQuery, 'useSuspenseQuery').mockReturnValue({
+      data: { date: '2026-09-09', matches: [] },
+    } as ReturnType<typeof reactQuery.useSuspenseQuery>);
+
+    const { getAllByText, getByText } = render(
+      React.createElement(DateRouteComponent),
+    );
+
+    expect(getAllByText('Wednesday, September 9, 2026').length).toBeGreaterThan(
+      0,
+    );
+    expect(getByText('No highlights recorded for this day')).toBeDefined();
+
+    paramsSpy.mockRestore();
+    querySpy.mockRestore();
+  });
+
+  it('renders MatchCard feed and handles goal highlight selection and Escape key closing', () => {
+    const mockMatch: MatchWithHighlights = {
+      id: 'match-1',
+      matchDate: '2026-09-09',
+      teamHome: 'Arsenal',
+      teamAway: 'Brighton',
+      createdAt: 1694250000,
+      updatedAt: 1694260000,
+      highlights: [
+        {
+          id: 'hl-1',
+          matchId: 'match-1',
+          title: 'Arsenal [1] - 0 Brighton - Saka 14',
+          scoreHome: 1,
+          scoreAway: 0,
+          scorer: 'Saka',
+          minute: "14'",
+          tag: null,
+          embedUrl: 'https://dubz.co/e/123',
+          sourceUrl: 'https://dubz.co/c/123',
+          redditUrl: '/r/soccer/comments/123',
+          redditScore: 1500,
+          postedAt: 1694250000,
+        },
+      ],
+    };
+
+    const paramsSpy = spyOn(Route, 'useParams').mockReturnValue({
+      date: '2026-09-09',
+    });
+    // SAFETY: Mocking TanStack useSuspenseQuery return payload for integration test
+    const querySpy = spyOn(reactQuery, 'useSuspenseQuery').mockReturnValue({
+      data: { date: '2026-09-09', matches: [mockMatch] },
+    } as ReturnType<typeof reactQuery.useSuspenseQuery>);
+
+    const { container, getByText, getByRole } = render(
+      React.createElement(DateRouteComponent),
+    );
+
+    // Card rendered with team names
+    expect(getByText('Arsenal')).toBeDefined();
+    expect(getByText('Brighton')).toBeDefined();
+
+    // Goal chip clicked -> opens HighlightPlayer
+    const chip = getByRole('button', { name: /Saka/i });
+    fireEvent.click(chip);
+
+    // HighlightPlayer should now be mounted
+    expect(container.querySelector('.aspect-video')).not.toBeNull();
+
+    // Press Escape key -> collapses active player
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(container.querySelector('.aspect-video')).toBeNull();
+
+    paramsSpy.mockRestore();
+    querySpy.mockRestore();
   });
 });

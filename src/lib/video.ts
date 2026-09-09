@@ -26,7 +26,7 @@ const HOST_RESOLVERS: HostResolver[] = [
   {
     name: 'streamin',
     pattern:
-      /(?:https?:\/\/)?(?:www\.)?streamin\.(?:one|me)\/(?:v|e)\/([a-zA-Z0-9_-]+)/i,
+      /(?:https?:\/\/)?(?:www\.)?streamin\.(?:one|me|link)\/(?:v|e)\/([a-zA-Z0-9_-]+)/i,
     resolve: (id: string, originalUrl: string) => ({
       embedUrl: `https://streamin.one/e/${id}`,
       isIframe: true,
@@ -37,7 +37,7 @@ const HOST_RESOLVERS: HostResolver[] = [
   {
     name: 'streamff',
     pattern:
-      /(?:https?:\/\/)?(?:www\.)?streamff\.com\/(?:v|e)\/([a-zA-Z0-9_-]+)/i,
+      /(?:https?:\/\/)?(?:www\.)?streamff\.(?:com|link|pro)\/(?:v|e)\/([a-zA-Z0-9_-]+)/i,
     resolve: (id: string, originalUrl: string) => ({
       embedUrl: `https://streamff.com/e/${id}`,
       isIframe: true,
@@ -51,6 +51,17 @@ const HOST_RESOLVERS: HostResolver[] = [
       /(?:https?:\/\/)?(?:www\.)?caulse\.com\/(?:v|e)\/([a-zA-Z0-9_-]+)/i,
     resolve: (id: string, originalUrl: string) => ({
       embedUrl: `https://caulse.com/e/${id}`,
+      isIframe: true,
+      directVideoUrl: null,
+      fallbackUrl: originalUrl,
+    }),
+  },
+  {
+    name: 'streamain',
+    pattern:
+      /(?:https?:\/\/)?(?:www\.)?(?:streamain\.com(?:\/[a-z]{2})?|streama\.in)\/(?:watch\/|embed\/|v\/)?([a-zA-Z0-9_-]+)(?:\/watch)?/i,
+    resolve: (id: string, originalUrl: string) => ({
+      embedUrl: `https://streamain.com/embed/${id}`,
       isIframe: true,
       directVideoUrl: null,
       fallbackUrl: originalUrl,
