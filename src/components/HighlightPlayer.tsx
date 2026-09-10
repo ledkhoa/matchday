@@ -1,7 +1,6 @@
 import { Play, X, VideoOff, ExternalLink, MessageSquare } from 'lucide-react';
 import type { Highlight } from '#/db/schema';
 import { resolveVideoEmbed } from '#/lib/video';
-import { formatRedditScore } from '#/lib/formatters';
 
 export interface HighlightPlayerProps {
   highlight: Highlight;
@@ -124,9 +123,7 @@ export function HighlightPlayer({ highlight, onClose }: HighlightPlayerProps) {
             className="inline-flex items-center gap-1.5 rounded-lg border border-orange-900/40 bg-orange-950/20 px-3 py-1.5 font-medium text-orange-400 transition-colors hover:bg-orange-950/40 hover:text-orange-300"
           >
             <MessageSquare className="h-3.5 w-3.5" />
-            <span>
-              Reddit Discussion (▲ {formatRedditScore(highlight.redditScore)})
-            </span>
+            <span>Reddit Discussion</span>
             <ExternalLink className="h-3 w-3 opacity-70" />
           </a>
 

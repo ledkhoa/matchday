@@ -12,7 +12,6 @@ import {
   type ScheduledEventPayload,
   type ScheduledExecutionContext,
 } from './cron';
-import { clearTokenCache } from './reddit';
 import type { CloudflareEnv } from '../types/env';
 
 type MetaValue =
@@ -148,7 +147,6 @@ describe('handleScheduled', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    clearTokenCache();
   });
 
   it('invokes ctx.waitUntil with async ingestion and logs completion', async () => {
@@ -159,13 +157,10 @@ describe('handleScheduled', () => {
     };
 
     globalThis.fetch = createMockFetch(async () => {
-      return new Response(
-        JSON.stringify({
-          kind: 'Listing',
-          data: { children: [] },
-        }),
-        { status: 200 },
-      );
+      return new Response('<feed></feed>', {
+        status: 200,
+        headers: { 'Content-Type': 'application/atom+xml' },
+      });
     });
 
     const event = new TestScheduledEvent();
@@ -258,38 +253,21 @@ describe('handleScheduled', () => {
     consoleWarnSpy.mockRestore();
   });
 
-  it('configures OAuth credentials when present in env', async () => {
+  it('uses custom user agent when configured in env', async () => {
     const mockDb = new TestD1Database();
     const env: CloudflareEnv = {
       DB: mockDb,
-      REDDIT_CLIENT_ID: 'client_id_123',
-      REDDIT_CLIENT_SECRET: 'client_secret_xyz',
-      REDDIT_USER_AGENT: 'test-agent',
+      REDDIT_USER_AGENT: 'CustomCronAgent/1.0',
     };
 
-    let oauthRequested = false;
+    let capturedUserAgent = '';
     globalThis.fetch = createMockFetch(
-      async (input: string | URL | Request) => {
-        const urlStr = input instanceof Request ? input.url : String(input);
-        if (urlStr.includes('api/v1/access_token')) {
-          oauthRequested = true;
-          return new Response(
-            JSON.stringify({
-              access_token: 'mock_token',
-              token_type: 'bearer',
-              expires_in: 3600,
-              scope: '*',
-            }),
-            { status: 200 },
-          );
-        }
-        return new Response(
-          JSON.stringify({
-            kind: 'Listing',
-            data: { children: [] },
-          }),
-          { status: 200 },
-        );
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        capturedUserAgent = new Headers(init?.headers).get('User-Agent') ?? '';
+        return new Response('<feed></feed>', {
+          status: 200,
+          headers: { 'Content-Type': 'application/atom+xml' },
+        });
       },
     );
 
@@ -299,6 +277,6 @@ describe('handleScheduled', () => {
     await handleScheduled(event, env, ctx);
     await Promise.all(ctx.promises);
 
-    expect(oauthRequested).toBe(true);
+    expect(capturedUserAgent).toBe('CustomCronAgent/1.0');
   });
 });

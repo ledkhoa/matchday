@@ -1,9 +1,13 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { sql } from 'drizzle-orm';
+import { sql, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { createDb } from '../db';
 import * as schema from '../db/schema';
-import { parseRedditTitle, generateMatchId } from '../lib/parser';
+import {
+  parseRedditTitle,
+  generateMatchId,
+  generateGoalFingerprint,
+} from '../lib/parser';
 import { resolveVideoEmbed } from '../lib/video';
 import { fetchRedditPosts, type RedditClientConfig } from './reddit';
 
@@ -44,6 +48,37 @@ export async function ingestRedditHighlights(
   const matchInsertMap = new Map<string, schema.NewMatch>();
   const highlightInsertMap = new Map<string, schema.NewHighlight>();
   const touchedMatchIds = new Set<string>();
+  const inBatchFingerprints = new Set<string>();
+
+  // Fetch existing fingerprints for matches that might be touched to prevent duplicate clips across runs
+  const prospectiveMatchIds: string[] = [];
+  for (const post of posts) {
+    const parsed = parseRedditTitle(post.title);
+    if (!parsed) continue;
+    const postDate = new Date(post.createdUtc * 1000);
+    const matchDate = postDate.toISOString().slice(0, 10);
+    prospectiveMatchIds.push(
+      generateMatchId(matchDate, parsed.teamHome, parsed.teamAway),
+    );
+  }
+
+  const existingFingerprints = new Set<string>();
+  if (prospectiveMatchIds.length > 0) {
+    try {
+      const existingRows = await db
+        .select({ fingerprint: schema.highlights.goalFingerprint })
+        .from(schema.highlights)
+        .where(inArray(schema.highlights.matchId, prospectiveMatchIds));
+
+      for (const row of existingRows) {
+        if (row.fingerprint) {
+          existingFingerprints.add(row.fingerprint);
+        }
+      }
+    } catch {
+      // Non-fatal if table is currently empty
+    }
+  }
 
   for (const post of posts) {
     const parsed = parseRedditTitle(post.title);
@@ -62,6 +97,25 @@ export async function ingestRedditHighlights(
       parsed.teamHome,
       parsed.teamAway,
     );
+
+    const fingerprint = generateGoalFingerprint(
+      matchId,
+      parsed.minute,
+      parsed.scoreHome,
+      parsed.scoreAway,
+    );
+
+    // Skip if another post for the exact same goal was already ingested or exists in the database
+    if (fingerprint) {
+      if (
+        inBatchFingerprints.has(fingerprint) ||
+        existingFingerprints.has(fingerprint)
+      ) {
+        result.skippedCount++;
+        continue;
+      }
+      inBatchFingerprints.add(fingerprint);
+    }
 
     if (!matchInsertMap.has(matchId)) {
       matchInsertMap.set(matchId, {
@@ -88,7 +142,7 @@ export async function ingestRedditHighlights(
       embedUrl: media.embedUrl,
       sourceUrl: post.url,
       redditUrl: post.permalink,
-      redditScore: post.score,
+      goalFingerprint: fingerprint,
       postedAt: Math.floor(post.createdUtc * 1000),
     };
 
@@ -109,7 +163,7 @@ export async function ingestRedditHighlights(
     );
   }
 
-  // 2. Highlights: INSERT OR ON CONFLICT UPDATE reddit_score & embed_url
+  // 2. Highlights: INSERT OR ON CONFLICT UPDATE embed_url
   for (const highlight of highlightInsertMap.values()) {
     statements.push(
       db
@@ -118,7 +172,6 @@ export async function ingestRedditHighlights(
         .onConflictDoUpdate({
           target: schema.highlights.id,
           set: {
-            redditScore: highlight.redditScore,
             embedUrl: sql`coalesce(${highlight.embedUrl}, ${schema.highlights.embedUrl})`,
           },
         }),

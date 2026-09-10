@@ -1,60 +1,36 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { getPlatformProxy } from 'wrangler';
 import { drizzle } from 'drizzle-orm/d1';
 import * as schema from './schema';
 import type { CloudflareEnv } from '../types/env';
-import { generateMatchId } from '../lib/parser';
+import {
+  generateMatchId,
+  parseRedditTitle,
+  generateGoalFingerprint,
+} from '../lib/parser';
 import { resolveVideoEmbed } from '../lib/video';
 
-interface SeedItem {
+interface ScrapedPost {
   id: string;
   title: string;
-  teamHome: string;
-  teamAway: string;
-  scoreHome: number;
-  scoreAway: number;
-  scorer: string;
-  minute: string;
-  tag: string | null;
-  sourceUrl: string;
-  redditUrl: string;
-  redditScore: number;
-  createdUtc: number;
+  url: string;
+  domain: string;
+  score: number;
+  permalink: string;
+  createdTimestamp: string;
 }
 
-const SEED_HIGHLIGHTS: SeedItem[] = [
-  {
-    id: 't3_1wbrm70',
-    title: "Barcelona [2] - 0 Feyenoord - Karim Adeyemi 22' (Great Goal)",
-    teamHome: 'Barcelona',
-    teamAway: 'Feyenoord',
-    scoreHome: 2,
-    scoreAway: 0,
-    scorer: 'Karim Adeyemi',
-    minute: "22'",
-    tag: 'Great Goal',
-    sourceUrl: 'https://streamin.link/v/b05cef59',
-    redditUrl:
-      'https://www.reddit.com/r/soccer/comments/1wbrm70/barcelona_2_0_feyenoord_karim_adeyemi_22_great/',
-    redditScore: 3103,
-    createdUtc: 1788973765,
-  },
-  {
-    id: 't3_1wbyjhs',
-    title: "Chelsea [6]-3 Leeds - Danny Welbeck 90'+4'",
-    teamHome: 'Chelsea',
-    teamAway: 'Leeds',
-    scoreHome: 6,
-    scoreAway: 3,
-    scorer: 'Danny Welbeck',
-    minute: "90'+4'",
-    tag: null,
-    sourceUrl: 'https://streamain.com/en/NzwSmy4S1oaJDOh/watch',
-    redditUrl:
-      'https://www.reddit.com/r/soccer/comments/1wbyjhs/chelsea_63_leeds_danny_welbeck_904/',
-    redditScore: 522,
-    createdUtc: 1788988404,
-  },
-];
+function extractRedditId(post: ScrapedPost): string {
+  if (post.id && post.id.startsWith('t3_')) {
+    return post.id;
+  }
+  const match = post.permalink.match(/\/comments\/([a-z0-9]+)/i);
+  if (match && match[1]) {
+    return `t3_${match[1]}`;
+  }
+  return post.id;
+}
 
 async function seed() {
   const proxy = await getPlatformProxy<CloudflareEnv>();
@@ -62,82 +38,103 @@ async function seed() {
 
   try {
     const db = drizzle(env.DB, { schema });
-    const today = new Date().toISOString().slice(0, 10);
+    const scrapedFile = path.resolve(process.cwd(), 'scraped_100_posts.json');
+
+    if (!fs.existsSync(scrapedFile)) {
+      console.error(
+        `[SEED] Scraped data file not found at ${scrapedFile}. Please run scraper first.`,
+      );
+      process.exit(1);
+    }
+
+    const rawData = fs.readFileSync(scrapedFile, 'utf-8');
+    const posts: ScrapedPost[] = JSON.parse(rawData);
 
     console.log(
-      `[SEED] Cleaning existing database records and seeding date: ${today}`,
+      `[SEED] Loaded ${posts.length} scraped posts. Parsing and preparing database records...`,
     );
 
-    // Delete existing records to ensure clean state with only authentic links
-    await db.delete(schema.highlights);
-    await db.delete(schema.matches);
+    const now = Date.now();
+    const matchMap = new Map<string, schema.NewMatch>();
+    const highlightList: schema.NewHighlight[] = [];
+    let skippedCount = 0;
 
-    for (const item of SEED_HIGHLIGHTS) {
-      const matchId = generateMatchId(today, item.teamHome, item.teamAway);
-      const media = resolveVideoEmbed(item.sourceUrl);
-      const now = Date.now();
+    for (const post of posts) {
+      const parsed = parseRedditTitle(post.title);
+      if (!parsed) {
+        skippedCount++;
+        continue;
+      }
 
-      await db
-        .insert(schema.matches)
-        .values({
+      const postDate = new Date(post.createdTimestamp);
+      const matchDate = postDate.toISOString().slice(0, 10);
+      const matchId = generateMatchId(
+        matchDate,
+        parsed.teamHome,
+        parsed.teamAway,
+      );
+
+      if (!matchMap.has(matchId)) {
+        matchMap.set(matchId, {
           id: matchId,
-          matchDate: today,
-          teamHome: item.teamHome,
-          teamAway: item.teamAway,
+          matchDate,
+          teamHome: parsed.teamHome,
+          teamAway: parsed.teamAway,
           createdAt: now,
           updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: schema.matches.id,
-          set: {
-            matchDate: today,
-            teamHome: item.teamHome,
-            teamAway: item.teamAway,
-            updatedAt: now,
-          },
         });
+      }
 
-      await db
-        .insert(schema.highlights)
-        .values({
-          id: item.id,
-          matchId,
-          title: item.title,
-          scoreHome: item.scoreHome,
-          scoreAway: item.scoreAway,
-          scorer: item.scorer,
-          minute: item.minute,
-          tag: item.tag,
-          embedUrl: media.embedUrl,
-          sourceUrl: item.sourceUrl,
-          redditUrl: item.redditUrl,
-          redditScore: item.redditScore,
-          postedAt: item.createdUtc * 1000,
-        })
-        .onConflictDoUpdate({
-          target: schema.highlights.id,
-          set: {
-            title: item.title,
-            scoreHome: item.scoreHome,
-            scoreAway: item.scoreAway,
-            scorer: item.scorer,
-            minute: item.minute,
-            tag: item.tag,
-            embedUrl: media.embedUrl,
-            sourceUrl: item.sourceUrl,
-            redditUrl: item.redditUrl,
-            redditScore: item.redditScore,
-            postedAt: item.createdUtc * 1000,
-          },
-        });
-
-      console.log(
-        `[SEED] Inserted match "${item.teamHome} vs ${item.teamAway}" with highlight "${item.title}"`,
+      const media = resolveVideoEmbed(post.url);
+      const highlightId = extractRedditId(post);
+      const fingerprint = generateGoalFingerprint(
+        matchId,
+        parsed.minute,
+        parsed.scoreHome,
+        parsed.scoreAway,
       );
+
+      highlightList.push({
+        id: highlightId,
+        matchId,
+        title: post.title,
+        scoreHome: parsed.scoreHome,
+        scoreAway: parsed.scoreAway,
+        scorer: parsed.scorer,
+        minute: parsed.minute,
+        tag: parsed.tag,
+        embedUrl: media.embedUrl,
+        sourceUrl: post.url,
+        redditUrl: post.permalink,
+        goalFingerprint: fingerprint,
+        postedAt: postDate.getTime(),
+      });
     }
 
     console.log(
-      `[SEED] Seeding completed: 2 matches and 2 highlights inserted.`,
+      `[SEED] Parsed ${highlightList.length} goal highlights across ${matchMap.size} unique matches (${skippedCount} non-scoreline posts skipped).`,
+    );
+
+    // Clean existing database records
+    await db.delete(schema.highlights);
+    await db.delete(schema.matches);
+
+    // Insert matches row-by-row to respect SQLite variable limit
+    const matchesArray = Array.from(matchMap.values());
+    for (const match of matchesArray) {
+      await db.insert(schema.matches).values(match).onConflictDoNothing();
+    }
+
+    // Insert highlights row-by-row to respect SQLite variable limit
+    for (const highlight of highlightList) {
+      await db
+        .insert(schema.highlights)
+        .values(highlight)
+        .onConflictDoNothing();
+    }
+
+    console.log(
+      `[SEED] Successfully seeded ${matchesArray.length} matches and ${highlightList.length} highlights into Cloudflare D1!`,
     );
   } catch (error) {
     console.error('[SEED] Database seeding failed:', error);

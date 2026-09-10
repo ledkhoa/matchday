@@ -4,7 +4,6 @@ import {
   formatGoalScore,
   getTagCategory,
   getTeamInitials,
-  formatRedditScore,
 } from './formatters';
 import type { Highlight } from '#/db/schema';
 
@@ -21,40 +20,13 @@ function makeHighlight(partial: Partial<Highlight>): Highlight {
     embedUrl: null,
     sourceUrl: 'https://dubz.co/c/abc',
     redditUrl: '/r/soccer/comments/123/goal',
-    redditScore: 0,
+    goalFingerprint: null,
     postedAt: 1690000000,
     ...partial,
   };
 }
 
 describe('formatters', () => {
-  describe('formatRedditScore', () => {
-    it('formats numbers below 1000 verbatim', () => {
-      expect(formatRedditScore(0)).toBe('0');
-      expect(formatRedditScore(450)).toBe('450');
-      expect(formatRedditScore(999)).toBe('999');
-    });
-
-    it('formats thousands with "k" and trims trailing zero', () => {
-      expect(formatRedditScore(1000)).toBe('1k');
-      expect(formatRedditScore(1240)).toBe('1.2k');
-      expect(formatRedditScore(14500)).toBe('14.5k');
-      expect(formatRedditScore(999900)).toBe('999.9k');
-    });
-
-    it('formats millions with "M"', () => {
-      expect(formatRedditScore(1000000)).toBe('1M');
-      expect(formatRedditScore(1200000)).toBe('1.2M');
-      expect(formatRedditScore(2500000)).toBe('2.5M');
-    });
-
-    it('handles null, undefined, and negative numbers as 0', () => {
-      expect(formatRedditScore(null)).toBe('0');
-      expect(formatRedditScore(undefined)).toBe('0');
-      expect(formatRedditScore(-5)).toBe('0');
-    });
-  });
-
   describe('computeMatchScore', () => {
     it('returns null when highlights array is empty', () => {
       expect(computeMatchScore([])).toBeNull();

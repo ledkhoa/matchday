@@ -157,7 +157,7 @@ describe('DateRouteComponent integration', () => {
           embedUrl: 'https://dubz.co/e/123',
           sourceUrl: 'https://dubz.co/c/123',
           redditUrl: '/r/soccer/comments/123',
-          redditScore: 1500,
+          goalFingerprint: null,
           postedAt: 1694250000,
         },
       ],

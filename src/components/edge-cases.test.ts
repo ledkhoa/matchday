@@ -6,7 +6,6 @@ import { MatchCard } from './MatchCard';
 import { HighlightPlayer } from './HighlightPlayer';
 import { EmptyState } from './EmptyState';
 import {
-  formatRedditScore,
   computeMatchScore,
   formatGoalScore,
   getTagCategory,
@@ -33,7 +32,7 @@ function makeHighlight(partial: Partial<Highlight> = {}): Highlight {
     embedUrl: 'https://dubz.co/e/edge1',
     sourceUrl: 'https://dubz.co/c/edge1',
     redditUrl: '/r/soccer/comments/edge1/saka_goal',
-    redditScore: 1500,
+    goalFingerprint: null,
     postedAt: 1694260000,
     ...partial,
   };
@@ -119,20 +118,6 @@ describe('Epic 5 & 6 Edge Cases QA Suite', () => {
   });
 
   describe('2. Formatter Edge Cases', () => {
-    it('formatRedditScore handles exact decimal edge cases and large values', () => {
-      expect(formatRedditScore(1000)).toBe('1k');
-      expect(formatRedditScore(1049)).toBe('1k');
-      expect(formatRedditScore(1050)).toBe('1.1k');
-      expect(formatRedditScore(1099)).toBe('1.1k');
-      expect(formatRedditScore(999949)).toBe('999.9k');
-      expect(formatRedditScore(1000000)).toBe('1M');
-      expect(formatRedditScore(1049999)).toBe('1M');
-      expect(formatRedditScore(1050000)).toBe('1.1M');
-      expect(formatRedditScore(15000000)).toBe('15M');
-      expect(formatRedditScore(-100)).toBe('0');
-      expect(formatRedditScore(0)).toBe('0');
-    });
-
     it('computeMatchScore handles highlights with all-null scores gracefully', () => {
       const highlights = [
         makeHighlight({ scoreHome: null, scoreAway: null }),
@@ -216,7 +201,7 @@ describe('Epic 5 & 6 Edge Cases QA Suite', () => {
         scorer: null,
         minute: null,
         tag: null,
-        redditScore: null,
+        goalFingerprint: null,
       });
       const match = makeMatch([hl]);
       const { getByRole } = render(

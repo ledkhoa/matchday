@@ -35,7 +35,7 @@ function makeHighlight(
     embedUrl: `https://dubz.co/e/${id}`,
     sourceUrl: `https://dubz.co/c/${id}`,
     redditUrl: `/r/soccer/comments/${id}`,
-    redditScore: 1200,
+    goalFingerprint: null,
     postedAt: 1694250000,
   };
 }

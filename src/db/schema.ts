@@ -30,10 +30,13 @@ export const highlights = sqliteTable(
     embedUrl: text('embed_url'),
     sourceUrl: text('source_url').notNull(),
     redditUrl: text('reddit_url').notNull(),
-    redditScore: integer('reddit_score').default(0),
+    goalFingerprint: text('goal_fingerprint'),
     postedAt: integer('posted_at', { mode: 'number' }).notNull(),
   },
-  (table) => [index('highlights_match_id_idx').on(table.matchId)],
+  (table) => [
+    index('highlights_match_id_idx').on(table.matchId),
+    index('highlights_goal_fingerprint_idx').on(table.goalFingerprint),
+  ],
 );
 
 export const matchesRelations = relations(matches, ({ many }) => ({

@@ -3,7 +3,6 @@ import type { MatchWithHighlights, Highlight } from '#/db/schema';
 import {
   computeMatchScore,
   formatGoalScore,
-  formatRedditScore,
   getTagCategory,
   getTeamInitials,
   sortHighlightsChronologically,
@@ -128,14 +127,6 @@ export function MatchCard({
                     )}
                   >
                     {hl.tag}
-                  </span>
-                )}
-
-                {/* Reddit Score Indicator */}
-                {hl.redditScore !== null && hl.redditScore !== undefined && (
-                  <span className="flex items-center gap-0.5 rounded bg-orange-950/30 px-1 py-0.5 text-[10px] font-medium text-orange-400">
-                    <span>▲</span>
-                    <span>{formatRedditScore(hl.redditScore)}</span>
                   </span>
                 )}
               </button>

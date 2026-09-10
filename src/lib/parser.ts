@@ -27,8 +27,11 @@ const INLINE_MINUTE_REGEX = /\b(\d+['′]?(?:\+\d+)?['′]?)\b/;
 /** Extracts trailing parenthesized tags like (Great Goal), (P), (OG), (Penalty) */
 const TAG_REGEX = /\(([^)]+)\)$/;
 
+/** Strips invisible directional and zero-width unicode formatting characters */
+const UNICODE_CONTROL_CHARS = /[\u200B-\u200D\uFEFF\u200E\u200F\u202A-\u202E]/g;
+
 export function parseRedditTitle(title: string): ParsedTitle | null {
-  const cleanTitle = title.trim();
+  const cleanTitle = title.replace(UNICODE_CONTROL_CHARS, '').trim();
 
   // 1. Filter out known meta and discussion threads
   if (META_THREAD_PREFIX_REGEX.test(cleanTitle)) {
@@ -130,4 +133,24 @@ export function generateMatchId(
 
   const sortedTeams = [normalize(teamA), normalize(teamB)].sort().join('_');
   return `${dateStr}_${sortedTeams}`;
+}
+
+/**
+ * Generates a unique fingerprint for a specific goal event in a match.
+ * Used to deduplicate multiple user submissions of the exact same goal on Reddit.
+ *
+ * Example:
+ *   generateGoalFingerprint("2026-09-09_chelsea_leeds", "90'+4'", 6, 3) === "2026-09-09_chelsea_leeds_m904_h6_a3"
+ */
+export function generateGoalFingerprint(
+  matchId: string,
+  minute: string | null,
+  scoreHome: number | null,
+  scoreAway: number | null,
+): string | null {
+  if (scoreHome === null || scoreAway === null) {
+    return null;
+  }
+  const cleanMin = (minute ?? '').replace(/[^0-9]/g, '');
+  return `${matchId}_m${cleanMin}_h${scoreHome}_a${scoreAway}`;
 }

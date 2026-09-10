@@ -135,21 +135,3 @@ export function getTeamInitials(teamName: string): string {
   }
   return clean.slice(0, 3).toUpperCase();
 }
-
-/**
- * Formats a Reddit upvote score into a compact human-readable number (e.g. 1.4k, 2.1M).
- */
-export function formatRedditScore(score: number | null | undefined): string {
-  if (score === null || score === undefined || score < 0) {
-    return '0';
-  }
-  if (score < 1000) {
-    return score.toString();
-  }
-  if (score < 1_000_000) {
-    const formatted = (score / 1000).toFixed(1);
-    return `${formatted.endsWith('.0') ? formatted.slice(0, -2) : formatted}k`;
-  }
-  const formatted = (score / 1_000_000).toFixed(1);
-  return `${formatted.endsWith('.0') ? formatted.slice(0, -2) : formatted}M`;
-}

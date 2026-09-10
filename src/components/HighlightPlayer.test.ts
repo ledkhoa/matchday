@@ -17,7 +17,7 @@ function createMockHighlight(partial: Partial<Highlight> = {}): Highlight {
     embedUrl: 'https://dubz.co/e/abc123',
     sourceUrl: 'https://dubz.co/c/abc123',
     redditUrl: '/r/soccer/comments/xyz/saka_goal',
-    redditScore: 1420,
+    goalFingerprint: null,
     postedAt: 1694260000,
     ...partial,
   };
@@ -116,8 +116,8 @@ describe('HighlightPlayer component', () => {
     expect(closeSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('renders Reddit discussion link with formatted upvote score', () => {
-    const highlight = createMockHighlight({ redditScore: 1420 });
+  it('renders Reddit discussion link', () => {
+    const highlight = createMockHighlight();
     const { getByRole } = render(
       React.createElement(HighlightPlayer, {
         highlight,
@@ -126,7 +126,7 @@ describe('HighlightPlayer component', () => {
     );
 
     const redditLink = getByRole('link', {
-      name: /Reddit Discussion \(▲ 1.4k\)/i,
+      name: /Reddit Discussion/i,
     });
     expect(redditLink).toBeDefined();
     expect(redditLink.getAttribute('href')).toBe(

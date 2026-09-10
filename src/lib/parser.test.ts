@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'bun:test';
-import { parseRedditTitle, generateMatchId } from './parser';
+import {
+  parseRedditTitle,
+  generateMatchId,
+  generateGoalFingerprint,
+} from './parser';
 
 describe('parseRedditTitle', () => {
   it('parses standard title with home score bracket', () => {
@@ -131,6 +135,22 @@ describe('parseRedditTitle', () => {
     });
   });
 
+  it('handles titles with invisible zero-width and directional unicode characters', () => {
+    // Contains \u200e (left-to-right mark) around the minute apostrophe
+    const result = parseRedditTitle(
+      "Chelsea 4 - [3] Leeds United - Dominic Calvert-Lewin 75\u200e'\u200e",
+    );
+    expect(result).toEqual({
+      teamHome: 'Chelsea',
+      teamAway: 'Leeds United',
+      scoreHome: 4,
+      scoreAway: 3,
+      scorer: 'Dominic Calvert-Lewin',
+      minute: "75'",
+      tag: null,
+    });
+  });
+
   it('rejects match threads', () => {
     expect(parseRedditTitle('Match Thread: Arsenal vs Chelsea')).toBeNull();
   });
@@ -251,5 +271,36 @@ describe('generateMatchId', () => {
     expect(matchId2).toBe(
       '2026-09-09_brightonhovealbion_wolverhamptonwanderers',
     );
+  });
+});
+
+describe('generateGoalFingerprint', () => {
+  it('generates fingerprint for standard regulation goal', () => {
+    const fp = generateGoalFingerprint('2026-09-09_chelsea_leeds', "22'", 2, 0);
+    expect(fp).toBe('2026-09-09_chelsea_leeds_m22_h2_a0');
+  });
+
+  it('generates fingerprint for stoppage time minutes like 90+4', () => {
+    const fp = generateGoalFingerprint(
+      '2026-09-09_chelsea_leeds',
+      "90'+4'",
+      6,
+      3,
+    );
+    expect(fp).toBe('2026-09-09_chelsea_leeds_m904_h6_a3');
+  });
+
+  it('generates fingerprint with empty minute if minute is null', () => {
+    const fp = generateGoalFingerprint('2026-09-09_chelsea_leeds', null, 1, 0);
+    expect(fp).toBe('2026-09-09_chelsea_leeds_m_h1_a0');
+  });
+
+  it('returns null if either home or away score is null', () => {
+    expect(
+      generateGoalFingerprint('2026-09-09_chelsea_leeds', "12'", null, 0),
+    ).toBeNull();
+    expect(
+      generateGoalFingerprint('2026-09-09_chelsea_leeds', "12'", 1, null),
+    ).toBeNull();
   });
 });
