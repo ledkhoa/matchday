@@ -1,199 +1,154 @@
-Welcome to your new TanStack Start app!
+# MatchDay ⚽
 
-# Getting Started
+**MatchDay** is a high-performance daily soccer digest and video highlight aggregator built for the modern edge. It pairs official daily fixtures from top global football competitions with real-time crowd-sourced goal clips, presenting clean scorelines, club crests, localized kickoff times, and inline video playback in a spoiler-controlled feed.
 
-To run this application:
+---
+
+## Features
+
+- 📅 **Daily Fixture & Highlight Feed**: Browse daily fixtures by date with interactive previous/next navigation, quick "Today" jump, and a calendar date picker.
+- ⏱️ **Client-Local Kickoff & Day Bucketing**: Group matches and display kickoff times in the viewer's local timezone (12-hour AM/PM format), ensuring evening games appear on the day they were played locally.
+- 🏆 **14 Supported Competitions**: Premier League, UEFA Champions League, UEFA Europa League, La Liga, Serie A, Bundesliga, Ligue 1, Major League Soccer, Eredivisie, Liga Portugal, FA Cup, EFL Cup, Copa del Rey, and DFB-Pokal.
+- 🛡️ **Club Crests & League Branding**: High-resolution official logos and club crests with layout-shift-free containers and fallback avatar monograms.
+- 🎯 **Client-Side League Filtering**: Filter daily feeds by competition with dynamic match counts and quick toggle pills.
+- 🎬 **Inline Video Highlight Player**: Expand and play goal clips directly inside match cards in responsive 16:9 containers (supporting Dubz, Streamff, Caulse, Streamin, and resilient external fallbacks).
+- 🤖 **Intelligent Highlight Matching Engine**:
+  - **Fuzzy Levenshtein & Alias Matching**: Resolves colloquial Reddit post titles (`"Chelsea [2] - 0 Spurs"`) to official canonical fixtures.
+  - **Rival Collision Guards**: Prevents false-positive matches between local rivals (e.g. Manchester City vs. Manchester United, Real Madrid vs. Atletico Madrid).
+  - **Non-Senior Squad Rejection**: Automatically excludes youth (U17–U23), reserve, and women's team clips from linking to senior first-team fixtures.
+  - **Kickoff Time Window Validation**: Rejects posts submitted outside a 4-hour temporal window around the fixture kickoff time.
+  - **Fingerprint Deduplication**: SHA-256 goal fingerprinting prevents duplicate submissions of the same goal.
+
+---
+
+## Architecture & Tech Stack
+
+```
+                               ┌─────────────────────────────────────────┐
+                               │           Cloudflare Workers            │
+                               │        Edge Runtime (workerd)           │
+                               └────────────────────┬────────────────────┘
+                                                    │
+                 ┌──────────────────────────────────┼──────────────────────────────────┐
+                 │                                  │                                  │
+                 ▼                                  ▼                                  ▼
+      ┌─────────────────────┐            ┌─────────────────────┐            ┌─────────────────────┐
+      │   TanStack Start    │            │  Daily Fixture Sync │            │ 5-Min Reddit Ingest │
+      │  SSR + File Router  │            │     API-Sports      │            │   r/soccer Atom RSS │
+      └──────────┬──────────┘            └──────────┬──────────┘            └──────────┬──────────┘
+                 │                                  │                                  │
+                 ▼                                  ▼                                  ▼
+      ┌───────────────────────────────────────────────────────────────────────────────────────────┐
+      │                                Cloudflare D1 (SQLite)                                     │
+      │                             Drizzle ORM Schema & Queries                                  │
+      └───────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Framework**: [TanStack Start](https://tanstack.com/start) (`@tanstack/react-start`, `@tanstack/react-router`, `@tanstack/react-query`) with React 19.
+- **Runtime**: [Cloudflare Workers](https://workers.cloudflare.com/) (Edge SSR + Scheduled Cron Triggers) configured via `@cloudflare/vite-plugin` and `wrangler`.
+- **Database & ORM**: Cloudflare D1 (Serverless SQLite) with [Drizzle ORM](https://orm.drizzle.team/).
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) (`@tailwindcss/vite`).
+- **Icons & UI Primitives**: `lucide-react` & [shadcn/ui](https://ui.shadcn.com/).
+- **Validation**: [Zod v4](https://zod.dev/).
+- **Code Quality**: Custom [Oxlint](https://oxc.rs/) AST anti-slop rules, strict TypeScript (`tsc --noEmit`), and Prettier.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- [Bun](https://bun.sh/) (v1.2+)
+- [Cloudflare Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/)
+
+### 1. Installation
 
 ```bash
+git clone https://github.com/your-username/matchday.git
+cd matchday
 bun install
-bun --bun run dev
 ```
 
-# Building For Production
+### 2. Environment Variables
 
-To build this application for production:
+Create `.dev.vars` for local development:
 
 ```bash
-bun --bun run build
+cp .dev.vars.example .dev.vars
 ```
 
-## Styling
+Add your API credentials:
 
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
+```ini
+API_FOOTBALL_KEY=your_api_sports_key_here
+CRON_SECRET=dev_secret
+```
 
-### Removing Tailwind CSS
+### 3. Database Setup
 
-If you prefer not to use Tailwind CSS:
-
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Remove `@tailwindcss/vite` and `tailwindcss` from `package.json`
-
-## Deploy to Cloudflare Workers
-
-This project uses the Cloudflare Vite plugin (configured in `vite.config.ts`) and `wrangler.jsonc`:
-
-1. Install Wrangler: `npm install -g wrangler`
-2. Authenticate: `wrangler login`
-3. Deploy: `npx wrangler deploy`
-
-For production env vars, run `wrangler secret put MY_VAR` for each secret listed in `.env.example`. Public (non-secret) vars go in `wrangler.jsonc` under `vars`.
-
-KV, D1, R2, and Durable Object bindings are configured in `wrangler.jsonc` — see https://developers.cloudflare.com/workers/wrangler/configuration/.
-
-## Shadcn
-
-Add components using the latest version of [Shadcn](https://ui.shadcn.com/).
+Apply local D1 migrations and seed initial data:
 
 ```bash
-bun dlx shadcn@latest add button
+bun run db:migrate:local
+bun run db:seed
 ```
 
-## Routing
+### 4. Running Locally
 
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
+Start the Vite development server with Cloudflare Workers emulation:
 
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from '@tanstack/react-router';
+```bash
+bun run dev
 ```
 
-Then anywhere in your JSX you can use it like so:
+The application will be available at `http://localhost:3000`.
 
-```tsx
-<Link to="/about">About</Link>
+---
+
+## Background Services & Ingestion
+
+MatchDay relies on two automated ingestion pipelines running via Cloudflare Workers Cron Triggers:
+
+1. **Daily Fixture Sync (`0 0 * * *`)**:
+   - Queries API-Sports v3 for matches across the 14 supported leagues.
+   - Upserts fixture metadata, club crests, competition logos, and kickoff timestamps into Cloudflare D1.
+   - Manual trigger:
+     ```bash
+     curl -X POST http://localhost:3000/api/fixtures \
+       -H "Authorization: Bearer dev_secret" \
+       -H "Content-Type: application/json" \
+       -d '{"date":"2026-09-10"}'
+     ```
+
+2. **5-Minute Highlight Ingestion (`*/5 * * * *`)**:
+   - Polls `r/soccer` new submissions via Reddit Atom RSS.
+   - Parses goal titles, match scores, scorers, and media URLs.
+   - Matches submissions to active fixtures and persists new clips to D1.
+   - Manual trigger:
+     ```bash
+     curl -X POST http://localhost:3000/api/cron \
+       -H "Authorization: Bearer dev_secret"
+     ```
+
+---
+
+## Verification & Testing
+
+Execute test suites and static analysis checks:
+
+```bash
+# Run 270+ automated tests
+bun test src
+
+# Run typecheck, oxlint anti-slop rules, and prettier check
+bun run check
+
+# Auto-format codebase
+bun run format
 ```
 
-This will create a link that will navigate to the `/about` route.
+---
 
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
+## License
 
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router';
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-});
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start';
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString();
-});
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('');
-
-  useEffect(() => {
-    getServerTime().then(setTime);
-  }, []);
-
-  return <div>Server time: {time}</div>;
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router';
-import { json } from '@tanstack/react-start';
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-});
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router';
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people');
-    return response.json();
-  },
-  component: PeopleComponent,
-});
-
-function PeopleComponent() {
-  const data = Route.useLoaderData();
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  );
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+MIT License.

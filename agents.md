@@ -32,6 +32,7 @@ This document defines the universal coding principles, quality gates, failure lo
 | 2026-09-09 | Used `any` type in D1 raw SQL query row mappings            | Strictly declare database row interfaces or use Drizzle ORM infer types (`Match`, `Highlight`) for all query responses.                                                         |
 | 2026-09-09 | Extracted comment/mirror link instead of submission URL     | Always extract the primary submission target URL (`post.url` or `<shreddit-post content-href>`) and support `streamain` / `streama.in`.                                         |
 | 2026-09-10 | Misaligned menu count badges between 0 and non-zero values  | Always use consistent fixed-width bounding containers (`min-w-[20px]`) and reserved accessory slots for list item counts and checkmarks to guarantee vertical column alignment. |
+| 2026-09-10 | Over-emphasized AI generation in README / project copy      | Keep project documentation clean, professional, and focused on the product, architecture, features, and engineering quality without intrusive AI self-promotion.                |
 
 ---
 
