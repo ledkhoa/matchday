@@ -118,4 +118,86 @@ describe('MatchHeader component', () => {
       container.firstElementChild?.classList.contains('custom-header-class'),
     ).toBe(true);
   });
+
+  describe('Watch status badges', () => {
+    it('renders unwatched badge with pulsing dot when unwatched highlights exist', () => {
+      const { getByTestId, getByText } = render(
+        React.createElement(MatchHeader, {
+          competition: 'Premier League',
+          watchStatus: {
+            total: 3,
+            watchedCount: 1,
+            hasUnwatched: true,
+            isAllWatched: false,
+          },
+        }),
+      );
+
+      const badge = getByTestId('watch-badge-unwatched');
+      expect(badge).toBeDefined();
+      expect(getByText('1/3 watched')).toBeDefined();
+
+      const pulsingDot = badge.querySelector('.animate-pulse');
+      expect(pulsingDot).not.toBeNull();
+    });
+
+    it('renders all-watched badge with checkmark icon when all highlights are watched', () => {
+      const { getByTestId, getByText, container } = render(
+        React.createElement(MatchHeader, {
+          competition: 'La Liga',
+          watchStatus: {
+            total: 2,
+            watchedCount: 2,
+            hasUnwatched: false,
+            isAllWatched: true,
+          },
+        }),
+      );
+
+      const badge = getByTestId('watch-badge-all-watched');
+      expect(badge).toBeDefined();
+      expect(getByText('2/2 watched')).toBeDefined();
+
+      // Checkmark icon rendered inside badge
+      const icon = badge.querySelector('svg');
+      expect(icon).not.toBeNull();
+      expect(
+        container.querySelector('[data-testid="watch-badge-unwatched"]'),
+      ).toBeNull();
+    });
+
+    it('omits watch badge completely when total highlights is 0', () => {
+      const { queryByTestId } = render(
+        React.createElement(MatchHeader, {
+          competition: 'Serie A',
+          watchStatus: {
+            total: 0,
+            watchedCount: 0,
+            hasUnwatched: false,
+            isAllWatched: false,
+          },
+        }),
+      );
+
+      expect(queryByTestId('watch-badge-unwatched')).toBeNull();
+      expect(queryByTestId('watch-badge-all-watched')).toBeNull();
+    });
+
+    it('renders watch badge even when competition and kickoff are null', () => {
+      const { getByTestId } = render(
+        React.createElement(MatchHeader, {
+          competition: null,
+          kickoffTime: null,
+          watchStatus: {
+            total: 1,
+            watchedCount: 0,
+            hasUnwatched: true,
+            isAllWatched: false,
+          },
+        }),
+      );
+
+      expect(getByTestId('watch-badge-unwatched')).toBeDefined();
+    });
+  });
 });

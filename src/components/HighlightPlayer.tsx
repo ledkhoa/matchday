@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { Play, X, VideoOff, ExternalLink, MessageSquare } from 'lucide-react';
 import type { Highlight } from '#/db/schema';
 import { resolveVideoEmbed } from '#/lib/video';
+import { markHighlightWatched } from '#/stores/watchHistoryStore';
 
 export interface HighlightPlayerProps {
   highlight: Highlight;
@@ -21,6 +23,12 @@ export function HighlightPlayer({ highlight, onClose }: HighlightPlayerProps) {
   const isDirectVideo = Boolean(media.directVideoUrl && !media.isIframe);
   const hasEmbed = Boolean(effectiveEmbedUrl);
   const isFallback = !isDirectVideo && !hasEmbed;
+
+  useEffect(() => {
+    if (highlight.id) {
+      markHighlightWatched(highlight.id);
+    }
+  }, [highlight.id]);
 
   const redditDiscussionUrl = highlight.redditUrl.startsWith('http')
     ? highlight.redditUrl

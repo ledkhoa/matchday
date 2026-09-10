@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start';
-import { getCookie } from '@tanstack/react-start/server';
 import { z } from 'zod';
 import {
   eq,
@@ -135,6 +134,7 @@ export async function handleFetchMatches(
 
   let cookieTz: string | undefined;
   try {
+    const { getCookie } = await import('@tanstack/react-start/server');
     cookieTz = getCookie('tz');
   } catch {
     cookieTz = undefined;

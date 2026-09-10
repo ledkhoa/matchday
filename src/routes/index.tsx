@@ -1,26 +1,24 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
-import { getCookie } from '@tanstack/react-start/server';
 import { getTodayDateString } from '#/lib/date-utils';
+import { getInitialDate } from '#/server/timezone';
 
 /**
  * Returns today's calendar date formatted as YYYY-MM-DD in the user's timezone.
  */
-export function getTodayUserDate(): string {
-  let tz: string | undefined;
+export async function getTodayUserDate(): Promise<string> {
   if ('document' in globalThis && 'Intl' in globalThis) {
     try {
-      tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) return getTodayDateString(tz);
     } catch {
-      tz = undefined;
-    }
-  } else {
-    try {
-      tz = getCookie('tz');
-    } catch {
-      tz = undefined;
+      // Fallback to server function
     }
   }
-  return getTodayDateString(tz);
+  try {
+    return await getInitialDate();
+  } catch {
+    return getTodayDateString();
+  }
 }
 
 /**
@@ -33,8 +31,8 @@ export function getTodayUtcDate(): string {
 /**
  * Executes root route beforeLoad redirection to today's local date.
  */
-export function handleIndexBeforeLoad() {
-  const today = getTodayUserDate();
+export async function handleIndexBeforeLoad() {
+  const today = await getTodayUserDate();
   throw redirect({
     to: '/date/$date',
     params: { date: today },

@@ -1,8 +1,12 @@
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
 import { HighlightPlayer } from './HighlightPlayer';
 import type { Highlight } from '#/db/schema';
+import {
+  clearWatchHistory,
+  isHighlightWatched,
+} from '#/stores/watchHistoryStore';
 
 function createMockHighlight(partial: Partial<Highlight> = {}): Highlight {
   return {
@@ -24,6 +28,24 @@ function createMockHighlight(partial: Partial<Highlight> = {}): Highlight {
 }
 
 describe('HighlightPlayer component', () => {
+  beforeEach(() => {
+    clearWatchHistory();
+  });
+
+  it('automatically marks highlight as watched upon mount', () => {
+    const highlight = createMockHighlight({ id: 'hl-auto-watch' });
+    expect(isHighlightWatched('hl-auto-watch')).toBe(false);
+
+    render(
+      React.createElement(HighlightPlayer, {
+        highlight,
+        onClose: () => {},
+      }),
+    );
+
+    expect(isHighlightWatched('hl-auto-watch')).toBe(true);
+  });
+
   it('enforces aspect-video and w-full container to prevent mobile overflow', () => {
     const highlight = createMockHighlight();
     const { container } = render(

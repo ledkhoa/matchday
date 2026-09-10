@@ -4,7 +4,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { Trophy } from 'lucide-react';
-import { getCookie } from '@tanstack/react-start/server';
+import { getServerTimezone } from '#/server/timezone';
 import { matchDayQueryOptions } from '../../integrations/tanstack-query/root-provider';
 import { DateNav } from '#/components/DateNav';
 import { MatchCard } from '#/components/MatchCard';
@@ -20,7 +20,7 @@ export const dateRouteSearchSchema = z.object({
 export type DateRouteSearch = z.infer<typeof dateRouteSearchSchema>;
 
 /**
- * Resolves the viewer's timezone from client Intl or server cookie.
+ * Resolves the viewer's timezone from client Intl.
  */
 export function resolveRequestTimezone(): string {
   if ('document' in globalThis && 'Intl' in globalThis) {
@@ -30,11 +30,7 @@ export function resolveRequestTimezone(): string {
       return 'UTC';
     }
   }
-  try {
-    return getCookie('tz') || 'UTC';
-  } catch {
-    return 'UTC';
-  }
+  return 'UTC';
 }
 
 /**
@@ -53,7 +49,7 @@ export function isValidIsoDate(dateString: string): boolean {
 
 export interface DateRouteLoaderContext {
   params: { date: string };
-  context: { queryClient: QueryClient };
+  context: { queryClient: QueryClient; tz?: string };
 }
 
 /**
@@ -71,7 +67,19 @@ export async function loadDateRoute({
   }
 
   // 2. Pre-fetch via TanStack Query client for SSR hydration respecting viewer timezone
-  const tz = resolveRequestTimezone();
+  let tz = context?.tz;
+  if (!tz) {
+    if ('document' in globalThis && 'Intl' in globalThis) {
+      tz = resolveRequestTimezone();
+    } else {
+      try {
+        tz = (await getServerTimezone()) || 'UTC';
+      } catch {
+        tz = 'UTC';
+      }
+    }
+  }
+
   return await context.queryClient.ensureQueryData(
     matchDayQueryOptions(date, tz),
   );
@@ -79,7 +87,14 @@ export async function loadDateRoute({
 
 export function DateRouteComponent() {
   const { date } = Route.useParams();
-  const tz = useMemo(() => resolveRequestTimezone(), []);
+  let routeTz: string | undefined;
+  try {
+    const routeContext = Route.useRouteContext();
+    routeTz = routeContext?.tz;
+  } catch {
+    routeTz = undefined;
+  }
+  const tz = useMemo(() => routeTz || resolveRequestTimezone(), [routeTz]);
 
   // SAFETY: Safely resolve active league from URL search params with fallback for test mocks
   let activeLeague: string | undefined;
@@ -212,6 +227,19 @@ export function DateRouteComponent() {
 
 export const Route = createFileRoute('/date/$date')({
   validateSearch: dateRouteSearchSchema,
+  beforeLoad: async () => {
+    let tz: string;
+    if ('document' in globalThis && 'Intl' in globalThis) {
+      tz = resolveRequestTimezone();
+    } else {
+      try {
+        tz = (await getServerTimezone()) || 'UTC';
+      } catch {
+        tz = 'UTC';
+      }
+    }
+    return { tz };
+  },
   loader: loadDateRoute,
   notFoundComponent: () => {
     return (

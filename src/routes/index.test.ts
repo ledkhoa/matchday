@@ -10,9 +10,9 @@ describe('Index route (/)', () => {
     expect(today).toBe(expected);
   });
 
-  it('throws a redirect to /date/$today in handleIndexBeforeLoad', () => {
+  it('throws a redirect to /date/$today in handleIndexBeforeLoad', async () => {
     try {
-      handleIndexBeforeLoad();
+      await handleIndexBeforeLoad();
       expect.unreachable('Expected beforeLoad to throw a redirect');
     } catch (thrown: unknown) {
       expect(isRedirect(thrown)).toBe(true);

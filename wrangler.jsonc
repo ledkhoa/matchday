@@ -15,8 +15,9 @@
     {
       "binding": "DB",
       "database_name": "matchday-db",
-      "database_id": "local-matchday-db",
+      "database_id": "6e85ef41-6e8a-470f-8084-fd818c23c31a",
       "migrations_dir": "migrations",
+      "remote": true,
     },
   ],
 }
