@@ -13,6 +13,10 @@ globalThis.window = win;
 globalThis.document = win.document;
 // @ts-expect-error navigator assignment
 globalThis.navigator = win.navigator;
+// @ts-expect-error event alignment for happy-dom dispatchEvent
+globalThis.Event = win.Event;
+// @ts-expect-error event alignment for happy-dom dispatchEvent
+globalThis.CustomEvent = win.CustomEvent;
 
 import { afterEach } from 'bun:test';
 import { cleanup } from '@testing-library/react';

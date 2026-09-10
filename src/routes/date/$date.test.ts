@@ -1,7 +1,16 @@
-import { describe, it, expect, spyOn } from 'bun:test';
+import {
+  describe,
+  it,
+  expect,
+  spyOn,
+  mock,
+  beforeEach,
+  afterEach,
+} from 'bun:test';
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
 import { isNotFound } from '@tanstack/react-router';
+import * as router from '@tanstack/react-router';
 import { QueryClient } from '@tanstack/react-query';
 import * as reactQuery from '@tanstack/react-query';
 import {
@@ -9,6 +18,7 @@ import {
   loadDateRoute,
   Route,
   DateRouteComponent,
+  dateRouteSearchSchema,
 } from './$date';
 import type { DayMatchesResult } from '../../server/matches';
 import type { MatchWithHighlights } from '#/db/schema';
@@ -44,6 +54,18 @@ describe('isValidIsoDate', () => {
     expect(isValidIsoDate('2026-06-31')).toBe(false); // June has 30 days
     expect(isValidIsoDate('2026-09-31')).toBe(false); // September has 30 days
     expect(isValidIsoDate('2026-11-31')).toBe(false); // November has 30 days
+  });
+});
+
+describe('dateRouteSearchSchema', () => {
+  it('parses valid search parameters with league', () => {
+    const result = dateRouteSearchSchema.parse({ league: 'Premier League' });
+    expect(result.league).toBe('Premier League');
+  });
+
+  it('parses empty search parameters without league', () => {
+    const result = dateRouteSearchSchema.parse({});
+    expect(result.league).toBeUndefined();
   });
 });
 
@@ -114,6 +136,18 @@ describe('Date route loader (/date/$date)', () => {
 });
 
 describe('DateRouteComponent integration', () => {
+  const mockNavigate = mock(async () => {});
+  let navigateSpy: ReturnType<typeof spyOn>;
+
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    navigateSpy = spyOn(router, 'useNavigate').mockReturnValue(mockNavigate);
+  });
+
+  afterEach(() => {
+    navigateSpy.mockRestore();
+  });
+
   it('renders DateNav and EmptyState when matches array is empty', () => {
     const paramsSpy = spyOn(Route, 'useParams').mockReturnValue({
       date: '2026-09-09',
@@ -143,7 +177,7 @@ describe('DateRouteComponent integration', () => {
       teamHome: 'Arsenal',
       teamAway: 'Brighton',
       externalId: null,
-      competition: null,
+      competition: 'Premier League',
       leagueLogo: null,
       teamHomeLogo: null,
       teamAwayLogo: null,
@@ -198,6 +232,113 @@ describe('DateRouteComponent integration', () => {
     expect(container.querySelector('.aspect-video')).toBeNull();
 
     paramsSpy.mockRestore();
+    querySpy.mockRestore();
+  });
+
+  it('filters matches when a league is active in search parameters', () => {
+    const mockMatches: MatchWithHighlights[] = [
+      {
+        id: 'match-1',
+        matchDate: '2026-09-10',
+        teamHome: 'Arsenal',
+        teamAway: 'Chelsea',
+        externalId: null,
+        competition: 'Premier League',
+        leagueLogo: null,
+        teamHomeLogo: null,
+        teamAwayLogo: null,
+        kickoffTime: null,
+        status: 'FT',
+        createdAt: 1694250000,
+        updatedAt: 1694260000,
+        highlights: [],
+      },
+      {
+        id: 'match-2',
+        matchDate: '2026-09-10',
+        teamHome: 'Inter Miami',
+        teamAway: 'LA Galaxy',
+        externalId: null,
+        competition: 'Major League Soccer',
+        leagueLogo: null,
+        teamHomeLogo: null,
+        teamAwayLogo: null,
+        kickoffTime: null,
+        status: 'FT',
+        createdAt: 1694250000,
+        updatedAt: 1694260000,
+        highlights: [],
+      },
+    ];
+
+    const paramsSpy = spyOn(Route, 'useParams').mockReturnValue({
+      date: '2026-09-10',
+    });
+    const searchSpy = spyOn(Route, 'useSearch').mockReturnValue({
+      league: 'Major League Soccer',
+    });
+    // SAFETY: Mocking TanStack useSuspenseQuery return payload for integration test
+    const querySpy = spyOn(reactQuery, 'useSuspenseQuery').mockReturnValue({
+      data: { date: '2026-09-10', matches: mockMatches },
+    } as ReturnType<typeof reactQuery.useSuspenseQuery>);
+
+    const { queryByText, getByText } = render(
+      React.createElement(DateRouteComponent),
+    );
+
+    // Only MLS match should be displayed
+    expect(getByText('Inter Miami')).toBeDefined();
+    expect(getByText('LA Galaxy')).toBeDefined();
+    expect(queryByText('Arsenal')).toBeNull();
+    expect(queryByText('Chelsea')).toBeNull();
+
+    paramsSpy.mockRestore();
+    searchSpy.mockRestore();
+    querySpy.mockRestore();
+  });
+
+  it('renders scoped empty state when selected league has no matches on current date', () => {
+    const mockMatches: MatchWithHighlights[] = [
+      {
+        id: 'match-1',
+        matchDate: '2026-09-10',
+        teamHome: 'Fenerbahçe',
+        teamAway: 'AS Roma',
+        externalId: null,
+        competition: 'UEFA Champions League',
+        leagueLogo: null,
+        teamHomeLogo: null,
+        teamAwayLogo: null,
+        kickoffTime: null,
+        status: 'FT',
+        createdAt: 1694250000,
+        updatedAt: 1694260000,
+        highlights: [],
+      },
+    ];
+
+    const paramsSpy = spyOn(Route, 'useParams').mockReturnValue({
+      date: '2026-09-10',
+    });
+    const searchSpy = spyOn(Route, 'useSearch').mockReturnValue({
+      league: 'Premier League',
+    });
+    // SAFETY: Mocking TanStack useSuspenseQuery return payload for integration test
+    const querySpy = spyOn(reactQuery, 'useSuspenseQuery').mockReturnValue({
+      data: { date: '2026-09-10', matches: mockMatches },
+    } as ReturnType<typeof reactQuery.useSuspenseQuery>);
+
+    const { getByText, getByRole } = render(
+      React.createElement(DateRouteComponent),
+    );
+
+    expect(getByText('No matches found for Premier League')).toBeDefined();
+    expect(
+      getByRole('button', { name: /show all matches \(1\)/i }),
+    ).toBeDefined();
+
+    paramsSpy.mockRestore();
+    searchSpy.mockRestore();
     querySpy.mockRestore();
   });
 });
