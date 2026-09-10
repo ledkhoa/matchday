@@ -1,3 +1,5 @@
+import { isNonSeniorSquad } from './parser';
+
 export const TEAM_ALIASES = {
   // Premier League
   spurs: 'tottenham',
@@ -277,6 +279,13 @@ export function jaroWinkler(s1: string, s2: string, p = 0.1): number {
  * anti-collision rules, token containment, and Jaro-Winkler distance.
  */
 export function calculateTeamSimilarity(nameA: string, nameB: string): number {
+  // Reject similarity if one team is a non-senior squad (youth/reserve/women) and the other is senior
+  const aNonSenior = isNonSeniorSquad(nameA);
+  const bNonSenior = isNonSeniorSquad(nameB);
+  if (aNonSenior !== bNonSenior) {
+    return 0.0;
+  }
+
   const stemA = normalizeTeamName(nameA);
   const stemB = normalizeTeamName(nameB);
 
@@ -316,6 +325,7 @@ export interface MatcherCandidate {
   teamAway: string;
   externalId?: number | null;
   competition?: string | null;
+  kickoffTime?: number | null;
 }
 
 export interface MatchResult {

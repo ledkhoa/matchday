@@ -154,3 +154,20 @@ export function generateGoalFingerprint(
   const cleanMin = (minute ?? '').replace(/[^0-9]/g, '');
   return `${matchId}_m${cleanMin}_h${scoreHome}_a${scoreAway}`;
 }
+
+const YOUTH_OR_RESERVE_REGEX =
+  /\b(?:u[- ]?1[5-9]|u[- ]?2[0-3]|under[- ]?1[5-9]|under[- ]?2[0-3]|sub[- ]?1[5-9]|sub[- ]?2[0-3])s?\b|\b(?:youth|juvenil|primavera|castilla|reserves?|b\s*team)\b|\b(?:women|womens|femeni|femenino|frauen|femmes|dames|donne|wfc)\b/i;
+
+const SQUAD_SUFFIX_REGEX = /(?:^|\s)(?:ii|b|w)(?:\s|$)/i;
+
+/**
+ * Detects whether a team name or title designates a youth, reserve, or women's squad.
+ * Used to reject non-senior clips from attaching to official senior first-team fixtures.
+ */
+export function isNonSeniorSquad(nameOrTitle?: string | null): boolean {
+  if (!nameOrTitle) return false;
+  return (
+    YOUTH_OR_RESERVE_REGEX.test(nameOrTitle) ||
+    SQUAD_SUFFIX_REGEX.test(nameOrTitle)
+  );
+}

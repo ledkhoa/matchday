@@ -33,6 +33,7 @@ interface MockMatchRow {
   team_away: string;
   external_id: number;
   competition: string;
+  kickoff_time?: number | null;
 }
 
 class TestPreparedStatement implements D1PreparedStatement {
@@ -81,6 +82,7 @@ class TestPreparedStatement implements D1PreparedStatement {
         m.team_away,
         m.external_id,
         m.competition,
+        m.kickoff_time ?? null,
       ]);
       if (options?.columnNames) {
         const columns = [
@@ -90,6 +92,7 @@ class TestPreparedStatement implements D1PreparedStatement {
           'team_away',
           'external_id',
           'competition',
+          'kickoff_time',
         ];
         // SAFETY: D1 raw return contract specifies tuple with column names as first element
         return [columns, ...rows] as [string[], ...T[]];
@@ -483,5 +486,158 @@ describe('ingestRedditHighlights', () => {
 
     expect(result.errors.length).toBe(1);
     expect(result.errors[0]).toContain('Network timeout');
+  });
+
+  it('skips youth squad posts and does not link them to senior fixtures', async () => {
+    const mockXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>t3_youth1</id>
+        <title>Bayern U19 [6]-1 Bodo/Glimt U19 - Mudser 88'</title>
+        <published>2026-09-10T16:45:00+00:00</published>
+        <link href="https://reddit.com/r/soccer/comments/youth1/" />
+        <content type="html">&lt;span&gt;&lt;a href=&quot;https://dubz.co/c/youth1&quot;&gt;[link]&lt;/a&gt;&lt;/span&gt;</content>
+      </entry>
+      <entry>
+        <id>t3_youth2</id>
+        <title>Manchester Utd U19 [5]-0 Sabah Baku U19 - Amir Ibragimov 77'</title>
+        <published>2026-09-10T16:30:00+00:00</published>
+        <link href="https://reddit.com/r/soccer/comments/youth2/" />
+        <content type="html">&lt;span&gt;&lt;a href=&quot;https://dubz.co/c/youth2&quot;&gt;[link]&lt;/a&gt;&lt;/span&gt;</content>
+      </entry>
+    </feed>`;
+
+    globalThis.fetch = createMockFetch(
+      async () =>
+        new Response(mockXml, {
+          status: 200,
+          headers: { 'Content-Type': 'application/atom+xml' },
+        }),
+    );
+
+    const testDb = new TestD1Database();
+    // Senior Champions League fixture
+    testDb.mockMatches = [
+      {
+        id: 'ucl_bayern_bodo',
+        match_date: '2026-09-10',
+        team_home: 'Bayern Munich',
+        team_away: 'FK Bodo/Glimt',
+        external_id: 9901,
+        competition: 'UEFA Champions League',
+        kickoff_time: 1757534400000,
+      },
+      {
+        id: 'ucl_manutd_sabah',
+        match_date: '2026-09-10',
+        team_home: 'Manchester United',
+        team_away: 'Sabah Baku',
+        external_id: 9902,
+        competition: 'UEFA Champions League',
+        kickoff_time: 1757534400000,
+      },
+    ];
+
+    const result = await ingestRedditHighlights(testDb);
+
+    expect(result.totalFetched).toBe(2);
+    expect(result.skippedCount).toBe(2); // Both youth posts rejected!
+    expect(result.persistedCount).toBe(0);
+    expect(testDb.executedQueries.length).toBe(0);
+  });
+
+  it('rejects posts submitted outside the fixture kickoff time window (> 15m before or > 4h after)', async () => {
+    // Senior kickoff at 20:00 UTC = 1757534400000 ms
+    // Post 1 is at 15:00 UTC (5 hours before kickoff -> too early)
+    // Post 2 is at 01:00 UTC next day (5 hours after kickoff -> too late)
+    const mockXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>t3_early</id>
+        <title>Bayern Munich [1] - 0 FK Bodo/Glimt - Kane 10'</title>
+        <published>2026-09-10T15:00:00+00:00</published>
+        <link href="https://reddit.com/r/soccer/comments/early/" />
+        <content type="html">&lt;span&gt;&lt;a href=&quot;https://dubz.co/c/early&quot;&gt;[link]&lt;/a&gt;&lt;/span&gt;</content>
+      </entry>
+      <entry>
+        <id>t3_late</id>
+        <title>Bayern Munich [2] - 0 FK Bodo/Glimt - Sane 80'</title>
+        <published>2026-09-11T01:15:00+00:00</published>
+        <link href="https://reddit.com/r/soccer/comments/late/" />
+        <content type="html">&lt;span&gt;&lt;a href=&quot;https://dubz.co/c/late&quot;&gt;[link]&lt;/a&gt;&lt;/span&gt;</content>
+      </entry>
+    </feed>`;
+
+    globalThis.fetch = createMockFetch(
+      async () =>
+        new Response(mockXml, {
+          status: 200,
+          headers: { 'Content-Type': 'application/atom+xml' },
+        }),
+    );
+
+    const testDb = new TestD1Database();
+    testDb.mockMatches = [
+      {
+        id: 'ucl_bayern_bodo',
+        match_date: '2026-09-10',
+        team_home: 'Bayern Munich',
+        team_away: 'FK Bodo/Glimt',
+        external_id: 9901,
+        competition: 'UEFA Champions League',
+        // Kickoff: 2026-09-10T20:00:00Z = 1757534400000
+        kickoff_time: new Date('2026-09-10T20:00:00Z').getTime(),
+      },
+    ];
+
+    const result = await ingestRedditHighlights(testDb);
+
+    expect(result.totalFetched).toBe(2);
+    expect(result.parsedCount).toBe(2);
+    expect(result.skippedCount).toBe(2); // Both posts outside kickoff window!
+    expect(result.persistedCount).toBe(0);
+  });
+
+  it('accepts posts submitted within the fixture kickoff time window', async () => {
+    // Kickoff at 20:00 UTC
+    // Post at 20:45 UTC (halftime goal)
+    const mockXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>t3_in_window</id>
+        <title>Bayern Munich [1] - 0 FK Bodo/Glimt - Kane 45'</title>
+        <published>2026-09-10T20:45:00+00:00</published>
+        <link href="https://reddit.com/r/soccer/comments/in_window/" />
+        <content type="html">&lt;span&gt;&lt;a href=&quot;https://dubz.co/c/in_window&quot;&gt;[link]&lt;/a&gt;&lt;/span&gt;</content>
+      </entry>
+    </feed>`;
+
+    globalThis.fetch = createMockFetch(
+      async () =>
+        new Response(mockXml, {
+          status: 200,
+          headers: { 'Content-Type': 'application/atom+xml' },
+        }),
+    );
+
+    const testDb = new TestD1Database();
+    testDb.mockMatches = [
+      {
+        id: 'ucl_bayern_bodo',
+        match_date: '2026-09-10',
+        team_home: 'Bayern Munich',
+        team_away: 'FK Bodo/Glimt',
+        external_id: 9901,
+        competition: 'UEFA Champions League',
+        kickoff_time: new Date('2026-09-10T20:00:00Z').getTime(),
+      },
+    ];
+
+    const result = await ingestRedditHighlights(testDb);
+
+    expect(result.totalFetched).toBe(1);
+    expect(result.parsedCount).toBe(1);
+    expect(result.skippedCount).toBe(0);
+    expect(result.persistedCount).toBe(1);
   });
 });

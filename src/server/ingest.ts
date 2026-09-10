@@ -3,10 +3,17 @@ import { and, gte, lte, eq, sql, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { createDb } from '../db';
 import * as schema from '../db/schema';
-import { parseRedditTitle, generateGoalFingerprint } from '../lib/parser';
+import {
+  parseRedditTitle,
+  generateGoalFingerprint,
+  isNonSeniorSquad,
+} from '../lib/parser';
 import { matchPostToFixture } from '../lib/matcher';
 import { resolveVideoEmbed } from '../lib/video';
 import { fetchRedditPosts, type RedditClientConfig } from './reddit';
+
+export const KICKOFF_WINDOW_BEFORE_MS = 15 * 60 * 1000; // 15 minutes before kickoff
+export const KICKOFF_WINDOW_AFTER_MS = 4 * 60 * 60 * 1000; // 4 hours after kickoff
 
 export interface IngestResult {
   totalFetched: number;
@@ -68,6 +75,7 @@ export async function ingestRedditHighlights(
     teamAway: string;
     externalId: number | null;
     competition: string | null;
+    kickoffTime: number | null;
   }> = [];
 
   try {
@@ -79,6 +87,7 @@ export async function ingestRedditHighlights(
         teamAway: schema.matches.teamAway,
         externalId: schema.matches.externalId,
         competition: schema.matches.competition,
+        kickoffTime: schema.matches.kickoffTime,
       })
       .from(schema.matches)
       .where(
@@ -126,6 +135,16 @@ export async function ingestRedditHighlights(
       continue;
     }
 
+    // Reject non-senior (youth, reserve, women) match posts
+    if (
+      isNonSeniorSquad(parsed.teamHome) ||
+      isNonSeniorSquad(parsed.teamAway) ||
+      isNonSeniorSquad(post.title)
+    ) {
+      result.skippedCount++;
+      continue;
+    }
+
     result.parsedCount++;
 
     const postDateStr = new Date(post.createdUtc * 1000)
@@ -142,6 +161,18 @@ export async function ingestRedditHighlights(
 
     // If post cannot be matched to an official tracked fixture, discard it
     if (!matchResult) {
+      result.skippedCount++;
+      continue;
+    }
+
+    // Validate kickoff time window (15 mins before kickoff to 4 hours after)
+    const postTimeMs = post.createdUtc * 1000;
+    if (
+      matchResult.fixture.kickoffTime != null &&
+      (postTimeMs <
+        matchResult.fixture.kickoffTime - KICKOFF_WINDOW_BEFORE_MS ||
+        postTimeMs > matchResult.fixture.kickoffTime + KICKOFF_WINDOW_AFTER_MS)
+    ) {
       result.skippedCount++;
       continue;
     }

@@ -319,4 +319,47 @@ describe('matchPostToFixture', () => {
     expect(result2).not.toBeNull();
     expect(result2?.fixture.id).toBe('ligue1-fixture-2');
   });
+
+  it('rejects matches between youth/non-senior teams and senior canonical fixtures', () => {
+    const seniorChampionsLeagueFixture: MatcherCandidate[] = [
+      {
+        id: 'ucl-bayern-bodo',
+        matchDate: '2026-09-10',
+        teamHome: 'Bayern Munich',
+        teamAway: 'FK Bodo/Glimt',
+        competition: 'UEFA Champions League',
+      },
+      {
+        id: 'ucl-leipzig-como',
+        matchDate: '2026-09-10',
+        teamHome: 'RB Leipzig',
+        teamAway: 'Como',
+        competition: 'UEFA Champions League',
+      },
+    ];
+
+    // Bayern U19 vs Bodo/Glimt U19 should NOT match senior Bayern Munich vs FK Bodo/Glimt
+    const youthMatch1 = matchPostToFixture(
+      'Bayern U19',
+      'Bodo/Glimt U19',
+      seniorChampionsLeagueFixture,
+    );
+    expect(youthMatch1).toBeNull();
+
+    // Como U19 vs RB Leipzig U19 should NOT match senior Leipzig vs Como
+    const youthMatch2 = matchPostToFixture(
+      'Como U19',
+      'RB Leipzig U19',
+      seniorChampionsLeagueFixture,
+    );
+    expect(youthMatch2).toBeNull();
+
+    // Barcelona B vs Real Madrid should NOT match senior El Clasico
+    expect(calculateTeamSimilarity('Barcelona B', 'Barcelona')).toBe(0.0);
+    expect(calculateTeamSimilarity('Bayern U19', 'Bayern Munich')).toBe(0.0);
+    expect(calculateTeamSimilarity('Arsenal Women', 'Arsenal')).toBe(0.0);
+    expect(calculateTeamSimilarity('Real Madrid Castilla', 'Real Madrid')).toBe(
+      0.0,
+    );
+  });
 });

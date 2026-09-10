@@ -3,6 +3,7 @@ import {
   parseRedditTitle,
   generateMatchId,
   generateGoalFingerprint,
+  isNonSeniorSquad,
 } from './parser';
 
 describe('parseRedditTitle', () => {
@@ -302,5 +303,76 @@ describe('generateGoalFingerprint', () => {
     expect(
       generateGoalFingerprint('2026-09-09_chelsea_leeds', "12'", 1, null),
     ).toBeNull();
+  });
+});
+
+describe('isNonSeniorSquad', () => {
+  it('detects youth squads (U15 through U23 variations)', () => {
+    expect(isNonSeniorSquad('Bayern U19')).toBe(true);
+    expect(isNonSeniorSquad('Bodo/Glimt U19')).toBe(true);
+    expect(isNonSeniorSquad('Manchester Utd U19')).toBe(true);
+    expect(isNonSeniorSquad('Sabah Baku U19')).toBe(true);
+    expect(isNonSeniorSquad('Como U19')).toBe(true);
+    expect(isNonSeniorSquad('RB Leipzig U19')).toBe(true);
+    expect(isNonSeniorSquad('Arsenal U-21')).toBe(true);
+    expect(isNonSeniorSquad('Chelsea Under 18')).toBe(true);
+    expect(isNonSeniorSquad('Real Madrid U17')).toBe(true);
+    expect(isNonSeniorSquad('Spain Sub-21')).toBe(true);
+    expect(isNonSeniorSquad('U19 Bayern Munich')).toBe(true);
+  });
+
+  it('detects youth tournament and squad names (Youth, Juvenil, Primavera)', () => {
+    expect(isNonSeniorSquad('Juventus Primavera')).toBe(true);
+    expect(isNonSeniorSquad('Real Madrid Juvenil A')).toBe(true);
+    expect(isNonSeniorSquad('Barcelona Juvenil B')).toBe(true);
+    expect(isNonSeniorSquad('UEFA Youth League')).toBe(true);
+    expect(isNonSeniorSquad('Chelsea Youth')).toBe(true);
+  });
+
+  it('detects reserve and B-teams (Castilla, II, B team, Reserves)', () => {
+    expect(isNonSeniorSquad('Real Madrid Castilla')).toBe(true);
+    expect(isNonSeniorSquad('Bayern II')).toBe(true);
+    expect(isNonSeniorSquad('Dortmund II')).toBe(true);
+    expect(isNonSeniorSquad('Barcelona B')).toBe(true);
+    expect(isNonSeniorSquad('Arsenal Reserves')).toBe(true);
+    expect(isNonSeniorSquad('Liverpool B team')).toBe(true);
+  });
+
+  it("detects women's teams (Women, Femeni, Frauen, WFC, W)", () => {
+    expect(isNonSeniorSquad('Arsenal Women')).toBe(true);
+    expect(isNonSeniorSquad("Chelsea Women's")).toBe(true);
+    expect(isNonSeniorSquad('Barcelona Femeni')).toBe(true);
+    expect(isNonSeniorSquad('Real Madrid Femenino')).toBe(true);
+    expect(isNonSeniorSquad('Wolfsburg Frauen')).toBe(true);
+    expect(isNonSeniorSquad('Lyon Femmes')).toBe(true);
+    expect(isNonSeniorSquad('Arsenal WFC')).toBe(true);
+    expect(isNonSeniorSquad('Chelsea W')).toBe(true);
+  });
+
+  it('does NOT falsely match senior first-team clubs', () => {
+    expect(isNonSeniorSquad('Arsenal')).toBe(false);
+    expect(isNonSeniorSquad('Chelsea')).toBe(false);
+    expect(isNonSeniorSquad('Bayern Munich')).toBe(false);
+    expect(isNonSeniorSquad('Manchester United')).toBe(false);
+    expect(isNonSeniorSquad('Newcastle United')).toBe(false);
+    expect(isNonSeniorSquad('Aston Villa')).toBe(false);
+    expect(isNonSeniorSquad('West Ham')).toBe(false);
+    expect(isNonSeniorSquad('Wolverhampton')).toBe(false);
+    expect(isNonSeniorSquad('Werder Bremen')).toBe(false);
+    expect(isNonSeniorSquad('Borussia Dortmund')).toBe(false);
+    expect(isNonSeniorSquad('Real Madrid')).toBe(false);
+    expect(isNonSeniorSquad('Barcelona')).toBe(false);
+    expect(isNonSeniorSquad('Paris Saint-Germain')).toBe(false);
+    expect(isNonSeniorSquad('Juventus')).toBe(false);
+    expect(isNonSeniorSquad('AC Milan')).toBe(false);
+    expect(isNonSeniorSquad('Inter Milan')).toBe(false);
+    expect(isNonSeniorSquad('VfB Stuttgart')).toBe(false);
+    expect(isNonSeniorSquad('VfL Wolfsburg')).toBe(false);
+  });
+
+  it('handles empty or null values safely', () => {
+    expect(isNonSeniorSquad('')).toBe(false);
+    expect(isNonSeniorSquad(null)).toBe(false);
+    expect(isNonSeniorSquad(undefined)).toBe(false);
   });
 });
