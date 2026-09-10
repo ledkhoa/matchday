@@ -4,11 +4,12 @@ import {
   computeMatchScore,
   formatGoalScore,
   getTagCategory,
-  getTeamInitials,
   sortHighlightsChronologically,
 } from '#/lib/formatters';
 import { cn } from '#/lib/utils';
 import { HighlightPlayer } from '#/components/HighlightPlayer';
+import { MatchHeader } from '#/components/MatchHeader';
+import { TeamCrest } from '#/components/TeamCrest';
 
 export interface MatchCardProps {
   match: MatchWithHighlights;
@@ -33,13 +34,19 @@ export function MatchCard({
       aria-label={`${match.teamHome} vs ${match.teamAway}`}
       className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 backdrop-blur-sm transition-all duration-200 hover:border-zinc-700/80 shadow-lg sm:p-5"
     >
+      {/* Competition & Match Status Header (Collapses cleanly when metadata is absent) */}
+      <MatchHeader
+        competition={match.competition}
+        leagueLogo={match.leagueLogo}
+        status={match.status}
+        kickoffTime={match.kickoffTime}
+      />
+
       {/* Team Display & Scoreline Header */}
       <div className="flex items-center justify-between gap-3 border-b border-zinc-800/80 pb-3 sm:gap-4">
         {/* Home Team */}
         <div className="flex flex-1 min-w-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-xs font-bold text-zinc-200 shadow-inner sm:h-9 sm:w-9">
-            {getTeamInitials(match.teamHome)}
-          </div>
+          <TeamCrest teamName={match.teamHome} logoUrl={match.teamHomeLogo} />
           <span className="truncate text-sm font-bold text-zinc-100 sm:text-base">
             {match.teamHome}
           </span>
@@ -59,9 +66,7 @@ export function MatchCard({
           <span className="truncate text-sm font-bold text-zinc-100 sm:text-base">
             {match.teamAway}
           </span>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-xs font-bold text-zinc-200 shadow-inner sm:h-9 sm:w-9">
-            {getTeamInitials(match.teamAway)}
-          </div>
+          <TeamCrest teamName={match.teamAway} logoUrl={match.teamAwayLogo} />
         </div>
       </div>
 

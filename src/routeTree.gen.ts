@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiCronRouteImport } from './routes/api/cron'
+import { Route as ApiFixturesRouteImport } from './routes/api/fixtures'
 import { Route as DateDateRouteImport } from './routes/date/$date'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const ApiCronRoute = ApiCronRouteImport.update({
   path: '/api/cron',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFixturesRoute = ApiFixturesRouteImport.update({
+  id: '/api/fixtures',
+  path: '/api/fixtures',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DateDateRoute = DateDateRouteImport.update({
   id: '/date/$date',
   path: '/date/$date',
@@ -32,30 +38,34 @@ const DateDateRoute = DateDateRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/cron': typeof ApiCronRoute
+  '/api/fixtures': typeof ApiFixturesRoute
   '/date/$date': typeof DateDateRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/cron': typeof ApiCronRoute
+  '/api/fixtures': typeof ApiFixturesRoute
   '/date/$date': typeof DateDateRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/cron': typeof ApiCronRoute
+  '/api/fixtures': typeof ApiFixturesRoute
   '/date/$date': typeof DateDateRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/cron' | '/date/$date'
+  fullPaths: '/' | '/api/cron' | '/api/fixtures' | '/date/$date'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/cron' | '/date/$date'
-  id: '__root__' | '/' | '/api/cron' | '/date/$date'
+  to: '/' | '/api/cron' | '/api/fixtures' | '/date/$date'
+  id: '__root__' | '/' | '/api/cron' | '/api/fixtures' | '/date/$date'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiCronRoute: typeof ApiCronRoute
+  ApiFixturesRoute: typeof ApiFixturesRoute
   DateDateRoute: typeof DateDateRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/fixtures': {
+      id: '/api/fixtures'
+      path: '/api/fixtures'
+      fullPath: '/api/fixtures'
+      preLoaderRoute: typeof ApiFixturesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/date/$date': {
       id: '/date/$date'
       path: '/date/$date'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiCronRoute: ApiCronRoute,
+  ApiFixturesRoute: ApiFixturesRoute,
   DateDateRoute: DateDateRoute,
 }
 export const routeTree = rootRouteImport

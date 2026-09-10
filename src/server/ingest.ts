@@ -1,13 +1,10 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { sql, inArray } from 'drizzle-orm';
+import { and, gte, lte, eq, sql, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { createDb } from '../db';
 import * as schema from '../db/schema';
-import {
-  parseRedditTitle,
-  generateMatchId,
-  generateGoalFingerprint,
-} from '../lib/parser';
+import { parseRedditTitle, generateGoalFingerprint } from '../lib/parser';
+import { matchPostToFixture } from '../lib/matcher';
 import { resolveVideoEmbed } from '../lib/video';
 import { fetchRedditPosts, type RedditClientConfig } from './reddit';
 
@@ -44,31 +41,67 @@ export async function ingestRedditHighlights(
     return result;
   }
 
-  const now = Date.now();
-  const matchInsertMap = new Map<string, schema.NewMatch>();
-  const highlightInsertMap = new Map<string, schema.NewHighlight>();
-  const touchedMatchIds = new Set<string>();
-  const inBatchFingerprints = new Set<string>();
-
-  // Fetch existing fingerprints for matches that might be touched to prevent duplicate clips across runs
-  const prospectiveMatchIds: string[] = [];
-  for (const post of posts) {
-    const parsed = parseRedditTitle(post.title);
-    if (!parsed) continue;
-    const postDate = new Date(post.createdUtc * 1000);
-    const matchDate = postDate.toISOString().slice(0, 10);
-    prospectiveMatchIds.push(
-      generateMatchId(matchDate, parsed.teamHome, parsed.teamAway),
-    );
+  if (posts.length === 0) {
+    return result;
   }
 
+  // 1. Calculate temporal query window: [minDate - 1 day, maxDate + 1 day]
+  let minUtc = Infinity;
+  let maxUtc = -Infinity;
+  for (const post of posts) {
+    if (post.createdUtc < minUtc) minUtc = post.createdUtc;
+    if (post.createdUtc > maxUtc) maxUtc = post.createdUtc;
+  }
+
+  const minDateStr = new Date((minUtc - 86400) * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const maxDateStr = new Date((maxUtc + 86400) * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  // 2. Query candidate fixtures from D1 within the temporal window
+  let candidates: Array<{
+    id: string;
+    matchDate: string;
+    teamHome: string;
+    teamAway: string;
+    externalId: number | null;
+    competition: string | null;
+  }> = [];
+
+  try {
+    candidates = await db
+      .select({
+        id: schema.matches.id,
+        matchDate: schema.matches.matchDate,
+        teamHome: schema.matches.teamHome,
+        teamAway: schema.matches.teamAway,
+        externalId: schema.matches.externalId,
+        competition: schema.matches.competition,
+      })
+      .from(schema.matches)
+      .where(
+        and(
+          gte(schema.matches.matchDate, minDateStr),
+          lte(schema.matches.matchDate, maxDateStr),
+        ),
+      );
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    result.errors.push(`Failed to query candidate fixtures: ${errorMsg}`);
+    return result;
+  }
+
+  // Fetch existing goal fingerprints for candidate fixtures to prevent duplicates across runs
   const existingFingerprints = new Set<string>();
-  if (prospectiveMatchIds.length > 0) {
+  if (candidates.length > 0) {
     try {
+      const candidateIds = candidates.map((c) => c.id);
       const existingRows = await db
         .select({ fingerprint: schema.highlights.goalFingerprint })
         .from(schema.highlights)
-        .where(inArray(schema.highlights.matchId, prospectiveMatchIds));
+        .where(inArray(schema.highlights.matchId, candidateIds));
 
       for (const row of existingRows) {
         if (row.fingerprint) {
@@ -76,10 +109,16 @@ export async function ingestRedditHighlights(
         }
       }
     } catch {
-      // Non-fatal if table is currently empty
+      // Non-fatal if highlights table is empty
     }
   }
 
+  const now = Date.now();
+  const highlightInsertMap = new Map<string, schema.NewHighlight>();
+  const touchedMatchIds = new Set<string>();
+  const inBatchFingerprints = new Set<string>();
+
+  // 3. Process each Reddit post
   for (const post of posts) {
     const parsed = parseRedditTitle(post.title);
     if (!parsed) {
@@ -89,23 +128,43 @@ export async function ingestRedditHighlights(
 
     result.parsedCount++;
 
-    const media = resolveVideoEmbed(post.url);
-    const postDate = new Date(post.createdUtc * 1000);
-    const matchDate = postDate.toISOString().slice(0, 10);
-    const matchId = generateMatchId(
-      matchDate,
+    const postDateStr = new Date(post.createdUtc * 1000)
+      .toISOString()
+      .slice(0, 10);
+
+    // Match parsed team names against candidate official fixtures
+    const matchResult = matchPostToFixture(
       parsed.teamHome,
       parsed.teamAway,
+      candidates,
+      postDateStr,
     );
 
+    // If post cannot be matched to an official tracked fixture, discard it
+    if (!matchResult) {
+      result.skippedCount++;
+      continue;
+    }
+
+    const canonicalMatchId = matchResult.fixture.id;
+
+    // Invert scores if matcher detected inverted orientation (e.g. "Away [1] - 0 Home")
+    const scoreHome = matchResult.inverted
+      ? parsed.scoreAway
+      : parsed.scoreHome;
+    const scoreAway = matchResult.inverted
+      ? parsed.scoreHome
+      : parsed.scoreAway;
+
+    // Generate goal fingerprint using canonical match ID
     const fingerprint = generateGoalFingerprint(
-      matchId,
+      canonicalMatchId,
       parsed.minute,
-      parsed.scoreHome,
-      parsed.scoreAway,
+      scoreHome,
+      scoreAway,
     );
 
-    // Skip if another post for the exact same goal was already ingested or exists in the database
+    // Skip if another post for the exact same goal was already ingested or exists in D1
     if (fingerprint) {
       if (
         inBatchFingerprints.has(fingerprint) ||
@@ -117,25 +176,15 @@ export async function ingestRedditHighlights(
       inBatchFingerprints.add(fingerprint);
     }
 
-    if (!matchInsertMap.has(matchId)) {
-      matchInsertMap.set(matchId, {
-        id: matchId,
-        matchDate,
-        teamHome: parsed.teamHome,
-        teamAway: parsed.teamAway,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    touchedMatchIds.add(matchId);
+    const media = resolveVideoEmbed(post.url);
+    touchedMatchIds.add(canonicalMatchId);
 
     const highlightRecord: schema.NewHighlight = {
-      id: post.name, // e.g. "t3_xxxxxx"
-      matchId,
+      id: post.name,
+      matchId: canonicalMatchId,
       title: post.title,
-      scoreHome: parsed.scoreHome,
-      scoreAway: parsed.scoreAway,
+      scoreHome,
+      scoreAway,
       scorer: parsed.scorer,
       minute: parsed.minute,
       tag: parsed.tag,
@@ -149,21 +198,13 @@ export async function ingestRedditHighlights(
     highlightInsertMap.set(post.name, highlightRecord);
   }
 
-  if (matchInsertMap.size === 0 && highlightInsertMap.size === 0) {
+  if (highlightInsertMap.size === 0 && touchedMatchIds.size === 0) {
     return result;
   }
 
-  // Build batch statements
+  // 4. Build batch statements: Highlights insert/update & Matches touched updatedAt
   const statements: SQLiteBatchItem[] = [];
 
-  // 1. Matches: INSERT OR IGNORE
-  for (const match of matchInsertMap.values()) {
-    statements.push(
-      db.insert(schema.matches).values(match).onConflictDoNothing(),
-    );
-  }
-
-  // 2. Highlights: INSERT OR ON CONFLICT UPDATE embed_url
   for (const highlight of highlightInsertMap.values()) {
     statements.push(
       db
@@ -178,23 +219,21 @@ export async function ingestRedditHighlights(
     );
   }
 
-  // 3. Touch updatedAt for matches containing new/updated highlights
   for (const matchId of touchedMatchIds) {
     statements.push(
       db
         .update(schema.matches)
         .set({ updatedAt: now })
-        .where(sql`${schema.matches.id} = ${matchId}`),
+        .where(eq(schema.matches.id, matchId)),
     );
   }
 
-  // Execute in manageable chunks to respect Cloudflare D1 batch thresholds
+  // Execute in chunks to respect Cloudflare D1 batch limits
   const CHUNK_SIZE = 30;
   for (let i = 0; i < statements.length; i += CHUNK_SIZE) {
     const chunk = statements.slice(i, i + CHUNK_SIZE);
-    if (chunk.length === 0) {
-      continue;
-    }
+    if (chunk.length === 0) continue;
+
     try {
       // SAFETY: chunk length is verified > 0 so non-empty tuple assertion satisfies D1 batch contract
       await db.batch(chunk as [SQLiteBatchItem, ...SQLiteBatchItem[]]);

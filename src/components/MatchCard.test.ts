@@ -10,6 +10,13 @@ function makeTestMatch(highlights: Highlight[] = []): MatchWithHighlights {
     matchDate: '2026-09-09',
     teamHome: 'Arsenal',
     teamAway: 'Brighton',
+    externalId: null,
+    competition: null,
+    leagueLogo: null,
+    teamHomeLogo: null,
+    teamAwayLogo: null,
+    kickoffTime: null,
+    status: null,
     createdAt: 1694250000,
     updatedAt: 1694260000,
     highlights,
@@ -164,5 +171,221 @@ describe('MatchCard component', () => {
 
     const player = container.querySelector('.aspect-video');
     expect(player).toBeNull();
+  });
+
+  describe('Competition branding, crests, and status badges', () => {
+    it('renders competition logo, name, club crests, and FT status badge', () => {
+      const match: MatchWithHighlights = {
+        ...makeTestMatch(),
+        competition: 'Premier League',
+        leagueLogo: 'https://example.com/epl.png',
+        teamHomeLogo: 'https://example.com/ars.png',
+        teamAwayLogo: 'https://example.com/bha.png',
+        status: 'FT',
+      };
+
+      const { getByText, getByAltText, container } = render(
+        React.createElement(MatchCard, {
+          match,
+          activeHighlightId: null,
+          onSelectHighlight: () => {},
+          onCloseHighlight: () => {},
+        }),
+      );
+
+      // Competition
+      expect(getByText('Premier League')).toBeDefined();
+      const leagueImg = container.querySelector(
+        'img[src="https://example.com/epl.png"]',
+      );
+      expect(leagueImg).not.toBeNull();
+      expect(leagueImg?.getAttribute('alt')).toBe('');
+
+      // Team crests
+      const homeImg = getByAltText('Arsenal crest');
+      expect(homeImg).toBeDefined();
+      expect(homeImg.getAttribute('src')).toBe('https://example.com/ars.png');
+
+      const awayImg = getByAltText('Brighton crest');
+      expect(awayImg).toBeDefined();
+      expect(awayImg.getAttribute('src')).toBe('https://example.com/bha.png');
+
+      // Status
+      expect(getByText('FT')).toBeDefined();
+    });
+
+    it('renders live status badge with pulsing indicator for 2H match', () => {
+      const match: MatchWithHighlights = {
+        ...makeTestMatch(),
+        competition: 'La Liga',
+        status: '2H',
+      };
+
+      const { getByText, container } = render(
+        React.createElement(MatchCard, {
+          match,
+          activeHighlightId: null,
+          onSelectHighlight: () => {},
+          onCloseHighlight: () => {},
+        }),
+      );
+
+      expect(getByText('2nd Half')).toBeDefined();
+      const pingDot = container.querySelector('.animate-ping');
+      expect(pingDot).not.toBeNull();
+    });
+
+    it('renders half-time status badge for HT match', () => {
+      const match: MatchWithHighlights = {
+        ...makeTestMatch(),
+        competition: 'Serie A',
+        status: 'HT',
+      };
+
+      const { getByText } = render(
+        React.createElement(MatchCard, {
+          match,
+          activeHighlightId: null,
+          onSelectHighlight: () => {},
+          onCloseHighlight: () => {},
+        }),
+      );
+
+      expect(getByText('HT')).toBeDefined();
+    });
+
+    it('renders upcoming kickoff badge with clock icon and formatted time', () => {
+      const kickoffTime = Date.UTC(2026, 8, 10, 19, 45);
+      const match: MatchWithHighlights = {
+        ...makeTestMatch(),
+        competition: 'Bundesliga',
+        status: 'NS',
+        kickoffTime,
+      };
+
+      const { getByText, container } = render(
+        React.createElement(MatchCard, {
+          match,
+          activeHighlightId: null,
+          onSelectHighlight: () => {},
+          onCloseHighlight: () => {},
+        }),
+      );
+
+      expect(getByText('19:45 UTC')).toBeDefined();
+      expect(container.querySelector('svg')).not.toBeNull();
+    });
+
+    it('falls back to initials when logo URLs are null or empty string', () => {
+      const match: MatchWithHighlights = {
+        ...makeTestMatch(),
+        teamHomeLogo: null,
+        teamAwayLogo: '',
+      };
+
+      const { getByText, queryByAltText } = render(
+        React.createElement(MatchCard, {
+          match,
+          activeHighlightId: null,
+          onSelectHighlight: () => {},
+          onCloseHighlight: () => {},
+        }),
+      );
+
+      expect(getByText('ARS')).toBeDefined();
+      expect(getByText('BHA')).toBeDefined();
+      expect(queryByAltText('Arsenal crest')).toBeNull();
+      expect(queryByAltText('Brighton crest')).toBeNull();
+    });
+
+    it('falls back to initials when club crest image triggers onError', () => {
+      const match: MatchWithHighlights = {
+        ...makeTestMatch(),
+        teamHomeLogo: 'https://broken.link/ars.png',
+        teamAwayLogo: 'https://example.com/bha.png',
+      };
+
+      const { getByAltText, getByText, queryByAltText } = render(
+        React.createElement(MatchCard, {
+          match,
+          activeHighlightId: null,
+          onSelectHighlight: () => {},
+          onCloseHighlight: () => {},
+        }),
+      );
+
+      const homeImg = getByAltText('Arsenal crest');
+      expect(homeImg).toBeDefined();
+
+      fireEvent.error(homeImg);
+
+      expect(getByText('ARS')).toBeDefined();
+      expect(queryByAltText('Arsenal crest')).toBeNull();
+      // Away crest should remain unaffected
+      expect(getByAltText('Brighton crest')).toBeDefined();
+    });
+
+    it('collapses MatchHeader completely when all header metadata is null', () => {
+      const match: MatchWithHighlights = {
+        ...makeTestMatch(),
+        competition: null,
+        leagueLogo: null,
+        status: null,
+        kickoffTime: null,
+      };
+
+      const { container } = render(
+        React.createElement(MatchCard, {
+          match,
+          activeHighlightId: null,
+          onSelectHighlight: () => {},
+          onCloseHighlight: () => {},
+        }),
+      );
+
+      // Scoreboard is the first child of article when MatchHeader collapses
+      const article = container.querySelector('article');
+      expect(article?.firstElementChild?.textContent).toContain('Arsenal');
+    });
+
+    it('renders competition only without status badge when status is absent', () => {
+      const compOnlyMatch: MatchWithHighlights = {
+        ...makeTestMatch(),
+        competition: 'Champions League',
+        status: null,
+      };
+
+      const { getByText, queryByText } = render(
+        React.createElement(MatchCard, {
+          match: compOnlyMatch,
+          activeHighlightId: null,
+          onSelectHighlight: () => {},
+          onCloseHighlight: () => {},
+        }),
+      );
+
+      expect(getByText('Champions League')).toBeDefined();
+      expect(queryByText('FT')).toBeNull();
+    });
+
+    it('renders status badge only when competition is absent', () => {
+      const statusOnlyMatch: MatchWithHighlights = {
+        ...makeTestMatch(),
+        competition: null,
+        status: 'FT',
+      };
+
+      const { getByText, queryByText } = render(
+        React.createElement(MatchCard, {
+          match: statusOnlyMatch,
+          activeHighlightId: null,
+          onSelectHighlight: () => {},
+          onCloseHighlight: () => {},
+        }),
+      );
+
+      expect(getByText('FT')).toBeDefined();
+      expect(queryByText('Champions League')).toBeNull();
+    });
   });
 });

@@ -15,6 +15,13 @@
       "when": 1788981000000,
       "tag": "0001_rss_fingerprint",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788982000000,
+      "tag": "0002_api_football_fixtures",
+      "breakpoints": true
     }
   ]
 }

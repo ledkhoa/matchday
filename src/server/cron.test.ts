@@ -113,7 +113,7 @@ class TestD1Database implements D1Database {
 
 class TestScheduledEvent implements ScheduledEventPayload {
   constructor(
-    public readonly cron: string = '*/10 * * * *',
+    public readonly cron: string = '*/5 * * * *',
     public readonly scheduledTime: number = Date.now(),
   ) {}
 
@@ -149,21 +149,92 @@ describe('handleScheduled', () => {
     globalThis.fetch = originalFetch;
   });
 
-  it('invokes ctx.waitUntil with async ingestion and logs completion', async () => {
+  it('dispatches fixture synchronization when cron is "0 0 * * *"', async () => {
+    const mockDb = new TestD1Database();
+    const env: CloudflareEnv = {
+      DB: mockDb,
+      API_FOOTBALL_KEY: 'test-api-key',
+    };
+
+    let requestedUrl = '';
+    globalThis.fetch = createMockFetch(async (input) => {
+      requestedUrl = String(input);
+      return new Response(
+        JSON.stringify({
+          get: 'fixtures',
+          results: 1,
+          response: [
+            {
+              fixture: {
+                id: 99,
+                date: '2026-09-10T15:00:00Z',
+                timestamp: 1789052400,
+                status: { short: 'NS' },
+              },
+              league: { id: 39, name: 'Premier League' },
+              teams: {
+                home: { id: 1, name: 'Arsenal' },
+                away: { id: 2, name: 'Chelsea' },
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    });
+
+    const event = new TestScheduledEvent('0 0 * * *');
+    const ctx = new TestExecutionContext();
+
+    const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleScheduled(event, env, ctx);
+    expect(ctx.promises.length).toBe(1);
+    await Promise.all(ctx.promises);
+
+    expect(requestedUrl).toContain('v3.football.api-sports.io/fixtures');
+    expect(consoleLogSpy).toHaveBeenCalled();
+    consoleLogSpy.mockRestore();
+  });
+
+  it('logs an error if API_FOOTBALL_KEY is missing on midnight cron', async () => {
+    const mockDb = new TestD1Database();
+    const env: CloudflareEnv = {
+      DB: mockDb,
+      // API_FOOTBALL_KEY omitted
+    };
+
+    const event = new TestScheduledEvent('0 0 * * *');
+    const ctx = new TestExecutionContext();
+
+    const consoleErrorSpy = spyOn(console, 'error').mockImplementation(
+      () => {},
+    );
+
+    await handleScheduled(event, env, ctx);
+    await Promise.all(ctx.promises);
+
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('invokes Reddit highlight ingestion when cron is "*/5 * * * *"', async () => {
     const mockDb = new TestD1Database();
     const env: CloudflareEnv = {
       DB: mockDb,
       REDDIT_USER_AGENT: 'test-agent',
     };
 
-    globalThis.fetch = createMockFetch(async () => {
+    let requestedUrl = '';
+    globalThis.fetch = createMockFetch(async (input) => {
+      requestedUrl = String(input);
       return new Response('<feed></feed>', {
         status: 200,
         headers: { 'Content-Type': 'application/atom+xml' },
       });
     });
 
-    const event = new TestScheduledEvent();
+    const event = new TestScheduledEvent('*/5 * * * *');
     const ctx = new TestExecutionContext();
 
     const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
@@ -173,6 +244,7 @@ describe('handleScheduled', () => {
     expect(ctx.promises.length).toBe(1);
     await Promise.all(ctx.promises);
 
+    expect(requestedUrl).toContain('reddit.com/r/soccer');
     expect(consoleLogSpy).toHaveBeenCalled();
     consoleLogSpy.mockRestore();
   });
@@ -186,7 +258,6 @@ describe('handleScheduled', () => {
       REDDIT_USER_AGENT: 'test-agent',
     };
 
-    // Force fetch to reject to trigger an error
     globalThis.fetch = createMockFetch(async () => {
       throw new Error('Network failure');
     });
@@ -227,30 +298,6 @@ describe('handleScheduled', () => {
     expect(consoleErrorSpy).toHaveBeenCalled();
 
     consoleErrorSpy.mockRestore();
-  });
-
-  it('logs warnings when ingestion result contains non-fatal errors', async () => {
-    const mockDb = new TestD1Database();
-    const env: CloudflareEnv = {
-      DB: mockDb,
-      REDDIT_USER_AGENT: 'test-agent',
-    };
-
-    // Force fetch to reject so ingestRedditHighlights records it in result.errors
-    globalThis.fetch = createMockFetch(async () => {
-      throw new Error('Reddit network unreachable');
-    });
-
-    const event = new TestScheduledEvent();
-    const ctx = new TestExecutionContext();
-
-    const consoleWarnSpy = spyOn(console, 'warn').mockImplementation(() => {});
-
-    await handleScheduled(event, env, ctx);
-    await Promise.all(ctx.promises);
-
-    expect(consoleWarnSpy).toHaveBeenCalled();
-    consoleWarnSpy.mockRestore();
   });
 
   it('uses custom user agent when configured in env', async () => {

@@ -142,6 +142,13 @@ describe('DateRouteComponent integration', () => {
       matchDate: '2026-09-09',
       teamHome: 'Arsenal',
       teamAway: 'Brighton',
+      externalId: null,
+      competition: null,
+      leagueLogo: null,
+      teamHomeLogo: null,
+      teamAwayLogo: null,
+      kickoffTime: null,
+      status: null,
       createdAt: 1694250000,
       updatedAt: 1694260000,
       highlights: [

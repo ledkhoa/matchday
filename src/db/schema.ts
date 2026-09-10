@@ -8,6 +8,16 @@ export const matches = sqliteTable(
     matchDate: text('match_date').notNull(),
     teamHome: text('team_home').notNull(),
     teamAway: text('team_away').notNull(),
+
+    // API-Football metadata
+    externalId: integer('external_id').unique(),
+    competition: text('competition'),
+    leagueLogo: text('league_logo'),
+    teamHomeLogo: text('team_home_logo'),
+    teamAwayLogo: text('team_away_logo'),
+    kickoffTime: integer('kickoff_time', { mode: 'number' }),
+    status: text('status'),
+
     createdAt: integer('created_at', { mode: 'number' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'number' }).notNull(),
   },

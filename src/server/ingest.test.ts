@@ -26,14 +26,24 @@ const mockMeta: TestMeta = {
   changes: 1,
 };
 
+interface MockMatchRow {
+  id: string;
+  match_date: string;
+  team_home: string;
+  team_away: string;
+  external_id: number;
+  competition: string;
+}
+
 class TestPreparedStatement implements D1PreparedStatement {
   constructor(
     public readonly query: string,
     public readonly values: unknown[] = [],
+    private readonly mockMatches: MockMatchRow[] = [],
   ) {}
 
   bind(...values: unknown[]): D1PreparedStatement {
-    return new TestPreparedStatement(this.query, values);
+    return new TestPreparedStatement(this.query, values, this.mockMatches);
   }
 
   async first<T>(_colName?: string): Promise<T | null> {
@@ -63,6 +73,30 @@ class TestPreparedStatement implements D1PreparedStatement {
   async raw<T = unknown[]>(options?: {
     columnNames?: boolean;
   }): Promise<[string[], ...T[]] | T[]> {
+    if (this.query.includes('from "matches"') && this.mockMatches.length > 0) {
+      const rows = this.mockMatches.map((m) => [
+        m.id,
+        m.match_date,
+        m.team_home,
+        m.team_away,
+        m.external_id,
+        m.competition,
+      ]);
+      if (options?.columnNames) {
+        const columns = [
+          'id',
+          'match_date',
+          'team_home',
+          'team_away',
+          'external_id',
+          'competition',
+        ];
+        // SAFETY: D1 raw return contract specifies tuple with column names as first element
+        return [columns, ...rows] as [string[], ...T[]];
+      }
+      // SAFETY: D1 raw return contract specifies array of row arrays
+      return rows as T[];
+    }
     if (options?.columnNames) {
       return [[]];
     }
@@ -72,11 +106,15 @@ class TestPreparedStatement implements D1PreparedStatement {
 
 class TestD1Database implements D1Database {
   public executedQueries: string[] = [];
+  public preparedStatements: TestPreparedStatement[] = [];
   public batchCalls: D1PreparedStatement[][] = [];
   public shouldFailBatch = false;
+  public mockMatches: MockMatchRow[] = [];
 
   prepare(query: string): D1PreparedStatement {
-    return new TestPreparedStatement(query);
+    const stmt = new TestPreparedStatement(query, [], this.mockMatches);
+    this.preparedStatements.push(stmt);
+    return stmt;
   }
 
   async batch<T = unknown>(
@@ -131,7 +169,7 @@ describe('ingestRedditHighlights', () => {
     globalThis.fetch = originalFetch;
   });
 
-  it('orchestrates ingestion, parsing, batching, and persistence from RSS', async () => {
+  it('matches Reddit posts to canonical fixtures and persists highlights without inserting new matches', async () => {
     const mockXml = `<?xml version="1.0" encoding="UTF-8"?>
     <feed xmlns="http://www.w3.org/2005/Atom">
       <entry>
@@ -148,12 +186,62 @@ describe('ingestRedditHighlights', () => {
         <link href="https://reddit.com/r/soccer/comments/p2/arsenal/" />
         <content type="html">&lt;span&gt;&lt;a href=&quot;https://dubz.co/c/p2&quot;&gt;[link]&lt;/a&gt;&lt;/span&gt;</content>
       </entry>
+    </feed>`;
+
+    globalThis.fetch = createMockFetch(
+      async () =>
+        new Response(mockXml, {
+          status: 200,
+          headers: { 'Content-Type': 'application/atom+xml' },
+        }),
+    );
+
+    const testDb = new TestD1Database();
+    // Provide canonical match candidate
+    testDb.mockMatches = [
+      {
+        id: '1035048',
+        match_date: '2026-09-09',
+        team_home: 'Arsenal',
+        team_away: 'Chelsea',
+        external_id: 1035048,
+        competition: 'Premier League',
+      },
+    ];
+
+    const result = await ingestRedditHighlights(testDb);
+
+    expect(result.totalFetched).toBe(2);
+    expect(result.parsedCount).toBe(2);
+    expect(result.skippedCount).toBe(0);
+    expect(result.persistedCount).toBe(2);
+    expect(result.errors).toEqual([]);
+
+    // Highlights should be inserted, match should be touched (updatedAt), but NEVER inserted
+    expect(
+      testDb.executedQueries.some((q) => q.includes('insert into "matches"')),
+    ).toBe(false);
+    expect(
+      testDb.executedQueries.some((q) =>
+        q.includes('insert into "highlights"'),
+      ),
+    ).toBe(true);
+    expect(
+      testDb.executedQueries.some((q) =>
+        q.includes('update "matches" set "updated_at"'),
+      ),
+    ).toBe(true);
+  });
+
+  it('correctly inverts scoreline and fingerprint when Reddit post has inverted orientation', async () => {
+    const mockXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
       <entry>
-        <id>t3_meta</id>
-        <title>Post Match Thread: Arsenal 2-0 Chelsea</title>
-        <published>2026-09-09T21:00:00+00:00</published>
-        <link href="https://reddit.com/r/soccer/comments/meta/post/" />
-        <content type="html">&lt;span&gt;&lt;a href=&quot;https://reddit.com/r/soccer/comments/meta/post/&quot;&gt;[link]&lt;/a&gt;&lt;/span&gt;</content>
+        <id>t3_inv1</id>
+        <title>Chelsea 0 - [1] Arsenal - Bukayo Saka 45'</title>
+        <published>2026-09-09T20:00:00+00:00</published>
+        <link href="https://reddit.com/r/soccer/comments/inv1/chelsea_arsenal/" />
+        <content type="html">&lt;span&gt;&lt;a href=&quot;https://dubz.co/c/inv1&quot;&gt;[link]&lt;/a&gt;&lt;/span&gt;</content>
       </entry>
     </feed>`;
 
@@ -166,43 +254,137 @@ describe('ingestRedditHighlights', () => {
     );
 
     const testDb = new TestD1Database();
+    testDb.mockMatches = [
+      {
+        id: '1035048',
+        match_date: '2026-09-09',
+        team_home: 'Arsenal',
+        team_away: 'Chelsea',
+        external_id: 1035048,
+        competition: 'Premier League',
+      },
+    ];
+
     const result = await ingestRedditHighlights(testDb);
 
-    expect(result.totalFetched).toBe(2);
-    expect(result.parsedCount).toBe(2);
+    expect(result.totalFetched).toBe(1);
+    expect(result.parsedCount).toBe(1);
+    expect(result.persistedCount).toBe(1);
     expect(result.skippedCount).toBe(0);
-    expect(result.persistedCount).toBe(2);
     expect(result.errors).toEqual([]);
 
-    // Two highlights share the same match (Arsenal vs Chelsea on 2026-09-09)
-    // Batch statements: 1 match insert + 2 highlight inserts + 1 match update = 4 statements
-    expect(testDb.executedQueries.length).toBe(4);
-    expect(
-      testDb.executedQueries.some((q) => q.includes('insert into "matches"')),
-    ).toBe(true);
-    expect(
-      testDb.executedQueries.some((q) =>
-        q.includes('insert into "highlights"'),
-      ),
-    ).toBe(true);
+    const highlightStmt = testDb.batchCalls
+      .flat()
+      .filter(
+        (stmt): stmt is TestPreparedStatement =>
+          stmt instanceof TestPreparedStatement,
+      )
+      .find((stmt) => stmt.query.includes('insert into "highlights"'));
+
+    expect(highlightStmt).toBeDefined();
+
+    // Verify canonical fixture attachment
+    expect(highlightStmt?.values[1]).toBe('1035048');
+    // Verify scoreHome: 1 and scoreAway: 0 (inverted from post title "Chelsea 0 - [1] Arsenal")
+    expect(highlightStmt?.values[3]).toBe(1);
+    expect(highlightStmt?.values[4]).toBe(0);
+    // Verify goalFingerprint ends with _h1_a0
+    // SAFETY: Highlight column index 11 corresponds to goal_fingerprint parameter
+    const fingerprint = highlightStmt?.values[11] as string;
+    expect(fingerprint).toBeDefined();
+    expect(fingerprint.endsWith('_h1_a0')).toBe(true);
+    expect(fingerprint).toBe('1035048_m45_h1_a0');
   });
 
-  it('deduplicates multiple submissions of the same goal via goalFingerprint', async () => {
-    // Two different users submit the same goal (DC United [2] - 0 Columbus Crew 37')
+  it('safely skips posts that do not match any candidate official fixture', async () => {
     const mockXml = `<?xml version="1.0" encoding="UTF-8"?>
     <feed xmlns="http://www.w3.org/2005/Atom">
       <entry>
-        <id>t3_first_submit</id>
-        <title>DC United [2] - 0 Columbus Crew - Tai Baribo 37'</title>
-        <published>2026-09-10T03:21:46+00:00</published>
-        <link href="https://reddit.com/r/soccer/comments/first/goal/" />
+        <id>t3_untracked</id>
+        <title>Yokohama F. Marinos [1] - 0 Kawasaki Frontale - Anderson Lopes 12'</title>
+        <published>2026-09-09T10:00:00+00:00</published>
+        <link href="https://reddit.com/r/soccer/comments/untracked/goal/" />
+        <content type="html">&lt;span&gt;&lt;a href=&quot;https://dubz.co/c/untracked&quot;&gt;[link]&lt;/a&gt;&lt;/span&gt;</content>
+      </entry>
+    </feed>`;
+
+    globalThis.fetch = createMockFetch(
+      async () =>
+        new Response(mockXml, {
+          status: 200,
+          headers: { 'Content-Type': 'application/atom+xml' },
+        }),
+    );
+
+    const testDb = new TestD1Database();
+    // Candidate fixtures only include Premier League
+    testDb.mockMatches = [
+      {
+        id: '1035048',
+        match_date: '2026-09-09',
+        team_home: 'Arsenal',
+        team_away: 'Chelsea',
+        external_id: 1035048,
+        competition: 'Premier League',
+      },
+    ];
+
+    const result = await ingestRedditHighlights(testDb);
+
+    expect(result.totalFetched).toBe(1);
+    expect(result.parsedCount).toBe(1);
+    expect(result.skippedCount).toBe(1);
+    expect(result.persistedCount).toBe(0);
+    expect(testDb.executedQueries.length).toBe(0);
+  });
+
+  it('queries candidate fixtures within 3-day window [minDate - 1, maxDate + 1]', async () => {
+    const mockXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>t3_post1</id>
+        <title>Arsenal [1] - 0 Chelsea 45'</title>
+        <published>2026-09-10T15:00:00+00:00</published>
+        <link href="https://reddit.com/r/soccer/comments/post1/" />
+        <content type="html">&lt;span&gt;&lt;a href=&quot;https://dubz.co/c/post1&quot;&gt;[link]&lt;/a&gt;&lt;/span&gt;</content>
+      </entry>
+    </feed>`;
+
+    globalThis.fetch = createMockFetch(
+      async () =>
+        new Response(mockXml, {
+          status: 200,
+          headers: { 'Content-Type': 'application/atom+xml' },
+        }),
+    );
+
+    const testDb = new TestD1Database();
+    await ingestRedditHighlights(testDb);
+
+    // Verify prepare was called with date range query
+    const matchQuery = testDb.preparedStatements.find((stmt) =>
+      stmt.query.includes('from "matches"'),
+    );
+    expect(matchQuery).toBeDefined();
+    expect(matchQuery?.query).toContain('"matches"."match_date" >= ?');
+    expect(matchQuery?.query).toContain('"matches"."match_date" <= ?');
+  });
+
+  it('deduplicates multiple submissions of the same goal via goalFingerprint', async () => {
+    const mockXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>t3_first</id>
+        <title>Spurs [1] - 0 Wolves - Son 22'</title>
+        <published>2026-09-10T14:22:00+00:00</published>
+        <link href="https://reddit.com/r/soccer/comments/first/" />
         <content type="html">&lt;span&gt;&lt;a href=&quot;https://v.redd.it/clip1&quot;&gt;[link]&lt;/a&gt;&lt;/span&gt;</content>
       </entry>
       <entry>
-        <id>t3_second_submit</id>
-        <title>DC United 2 - 0 Columbus Crew - Baribo 37'</title>
-        <published>2026-09-10T03:22:00+00:00</published>
-        <link href="https://reddit.com/r/soccer/comments/second/goal/" />
+        <id>t3_second</id>
+        <title>Tottenham 1 - 0 Wolverhampton - Son 22'</title>
+        <published>2026-09-10T14:22:30+00:00</published>
+        <link href="https://reddit.com/r/soccer/comments/second/" />
         <content type="html">&lt;span&gt;&lt;a href=&quot;https://v.redd.it/clip2&quot;&gt;[link]&lt;/a&gt;&lt;/span&gt;</content>
       </entry>
     </feed>`;
@@ -216,11 +398,22 @@ describe('ingestRedditHighlights', () => {
     );
 
     const testDb = new TestD1Database();
+    testDb.mockMatches = [
+      {
+        id: '2001',
+        match_date: '2026-09-10',
+        team_home: 'Tottenham Hotspur',
+        team_away: 'Wolverhampton Wanderers',
+        external_id: 2001,
+        competition: 'Premier League',
+      },
+    ];
+
     const result = await ingestRedditHighlights(testDb);
 
     expect(result.totalFetched).toBe(2);
     expect(result.parsedCount).toBe(2);
-    expect(result.skippedCount).toBe(1); // Second submission skipped!
+    expect(result.skippedCount).toBe(1); // Duplicate goal skipped!
     expect(result.persistedCount).toBe(1);
   });
 
@@ -245,6 +438,16 @@ describe('ingestRedditHighlights', () => {
     );
 
     const testDb = new TestD1Database();
+    testDb.mockMatches = [
+      {
+        id: '1035048',
+        match_date: '2026-09-09',
+        team_home: 'Arsenal',
+        team_away: 'Chelsea',
+        external_id: 1035048,
+        competition: 'Premier League',
+      },
+    ];
     testDb.shouldFailBatch = true;
 
     const result = await ingestRedditHighlights(testDb);

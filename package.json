@@ -15,6 +15,7 @@
     "db:migrate:local": "wrangler d1 migrations apply matchday-db --local",
     "db:migrate:prod": "wrangler d1 migrations apply matchday-db --remote",
     "db:seed": "tsx src/db/seed.ts",
+    "db:sync-fixtures": "tsx src/server/cli-sync-fixtures.ts",
     "db:ingest": "tsx src/server/cli-ingest.ts",
     "cf-typegen": "wrangler types",
     "test": "bun test src",
