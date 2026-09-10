@@ -173,15 +173,16 @@ describe('MatchCard component', () => {
     expect(player).toBeNull();
   });
 
-  describe('Competition branding, crests, and status badges', () => {
-    it('renders competition logo, name, club crests, and FT status badge', () => {
+  describe('Competition branding, crests, and kickoff badges', () => {
+    it('renders competition logo, name, club crests, and kickoff time badge', () => {
+      const kickoffTime = Date.UTC(2026, 8, 10, 20, 0);
       const match: MatchWithHighlights = {
         ...makeTestMatch(),
         competition: 'Premier League',
         leagueLogo: 'https://example.com/epl.png',
         teamHomeLogo: 'https://example.com/ars.png',
         teamAwayLogo: 'https://example.com/bha.png',
-        status: 'FT',
+        kickoffTime,
       };
 
       const { getByText, getByAltText, container } = render(
@@ -210,56 +211,16 @@ describe('MatchCard component', () => {
       expect(awayImg).toBeDefined();
       expect(awayImg.getAttribute('src')).toBe('https://example.com/bha.png');
 
-      // Status
-      expect(getByText('FT')).toBeDefined();
+      // Kickoff Badge
+      expect(getByText(/Kickoff: \d{1,2}:\d{2} [AP]M/)).toBeDefined();
+      expect(container.querySelector('svg')).not.toBeNull();
     });
 
-    it('renders live status badge with pulsing indicator for 2H match', () => {
-      const match: MatchWithHighlights = {
-        ...makeTestMatch(),
-        competition: 'La Liga',
-        status: '2H',
-      };
-
-      const { getByText, container } = render(
-        React.createElement(MatchCard, {
-          match,
-          activeHighlightId: null,
-          onSelectHighlight: () => {},
-          onCloseHighlight: () => {},
-        }),
-      );
-
-      expect(getByText('2nd Half')).toBeDefined();
-      const pingDot = container.querySelector('.animate-ping');
-      expect(pingDot).not.toBeNull();
-    });
-
-    it('renders half-time status badge for HT match', () => {
-      const match: MatchWithHighlights = {
-        ...makeTestMatch(),
-        competition: 'Serie A',
-        status: 'HT',
-      };
-
-      const { getByText } = render(
-        React.createElement(MatchCard, {
-          match,
-          activeHighlightId: null,
-          onSelectHighlight: () => {},
-          onCloseHighlight: () => {},
-        }),
-      );
-
-      expect(getByText('HT')).toBeDefined();
-    });
-
-    it('renders upcoming kickoff badge with clock icon and formatted time', () => {
+    it('renders kickoff time badge with clock icon and formatted time', () => {
       const kickoffTime = Date.UTC(2026, 8, 10, 19, 45);
       const match: MatchWithHighlights = {
         ...makeTestMatch(),
         competition: 'Bundesliga',
-        status: 'NS',
         kickoffTime,
       };
 
@@ -272,7 +233,7 @@ describe('MatchCard component', () => {
         }),
       );
 
-      expect(getByText('19:45 UTC')).toBeDefined();
+      expect(getByText(/Kickoff: \d{1,2}:\d{2} [AP]M/)).toBeDefined();
       expect(container.querySelector('svg')).not.toBeNull();
     });
 
@@ -348,14 +309,14 @@ describe('MatchCard component', () => {
       expect(article?.firstElementChild?.textContent).toContain('Arsenal');
     });
 
-    it('renders competition only without status badge when status is absent', () => {
+    it('renders competition only without kickoff badge when kickoffTime is absent', () => {
       const compOnlyMatch: MatchWithHighlights = {
         ...makeTestMatch(),
         competition: 'Champions League',
-        status: null,
+        kickoffTime: null,
       };
 
-      const { getByText, queryByText } = render(
+      const { getByText, container } = render(
         React.createElement(MatchCard, {
           match: compOnlyMatch,
           activeHighlightId: null,
@@ -365,26 +326,27 @@ describe('MatchCard component', () => {
       );
 
       expect(getByText('Champions League')).toBeDefined();
-      expect(queryByText('FT')).toBeNull();
+      expect(container.querySelector('svg')).toBeNull();
     });
 
-    it('renders status badge only when competition is absent', () => {
-      const statusOnlyMatch: MatchWithHighlights = {
+    it('renders kickoff badge only when competition is absent', () => {
+      const kickoffTime = Date.UTC(2026, 8, 10, 15, 0);
+      const kickoffOnlyMatch: MatchWithHighlights = {
         ...makeTestMatch(),
         competition: null,
-        status: 'FT',
+        kickoffTime,
       };
 
       const { getByText, queryByText } = render(
         React.createElement(MatchCard, {
-          match: statusOnlyMatch,
+          match: kickoffOnlyMatch,
           activeHighlightId: null,
           onSelectHighlight: () => {},
           onCloseHighlight: () => {},
         }),
       );
 
-      expect(getByText('FT')).toBeDefined();
+      expect(getByText(/Kickoff: \d{1,2}:\d{2} [AP]M/)).toBeDefined();
       expect(queryByText('Champions League')).toBeNull();
     });
   });

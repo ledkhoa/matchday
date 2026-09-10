@@ -16,6 +16,7 @@ export interface MatchCardProps {
   activeHighlightId: string | null;
   onSelectHighlight: (highlight: Highlight) => void;
   onCloseHighlight: () => void;
+  timeZone?: string;
 }
 
 export function MatchCard({
@@ -23,6 +24,7 @@ export function MatchCard({
   activeHighlightId,
   onSelectHighlight,
   onCloseHighlight,
+  timeZone,
 }: MatchCardProps) {
   const sortedHighlights = sortHighlightsChronologically(match.highlights);
   const computedScore = computeMatchScore(sortedHighlights);
@@ -38,8 +40,8 @@ export function MatchCard({
       <MatchHeader
         competition={match.competition}
         leagueLogo={match.leagueLogo}
-        status={match.status}
         kickoffTime={match.kickoffTime}
+        timeZone={timeZone}
       />
 
       {/* Team Display & Scoreline Header */}

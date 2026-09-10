@@ -11,10 +11,10 @@ export const MATCH_QUERY_STALE_TIME_MS = 1000 * 60 * 5; // 5 minutes
  * Enables unified query fetching across route loaders, client pre-fetching,
  * and Suspense hooks.
  */
-export const matchDayQueryOptions = (date: string) =>
+export const matchDayQueryOptions = (date: string, tz?: string) =>
   queryOptions<DayMatchesResult, Error>({
-    queryKey: ['matches', date],
-    queryFn: () => fetchMatchesForDate({ data: date }),
+    queryKey: ['matches', date, tz ?? 'UTC'],
+    queryFn: () => fetchMatchesForDate({ data: { date, tz } }),
     staleTime: MATCH_QUERY_STALE_TIME_MS,
   });
 

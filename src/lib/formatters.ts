@@ -136,22 +136,14 @@ export function getTeamInitials(teamName: string): string {
   return clean.slice(0, 3).toUpperCase();
 }
 
-export type MatchStatusVariant =
-  'ft' | 'live' | 'ht' | 'upcoming' | 'postponed' | 'unknown';
-
-export interface FormattedMatchStatus {
-  label: string;
-  variant: MatchStatusVariant;
-  isLive: boolean;
-}
-
 /**
- * Formats epoch milliseconds into a standardized UTC kick-off time string (e.g. "19:45 UTC").
- * Using UTC prevents React SSR hydration mismatches across client timezones.
+ * Formats epoch milliseconds into a localized kick-off time string (e.g. "7:30 PM").
+ * Accepts an optional IANA timezone; in browser environments, defaults to client timezone.
  * Returns empty string if timestamp is null, undefined, NaN, or non-positive.
  */
 export function formatKickoffTime(
   timestampMs: number | null | undefined,
+  timeZone?: string,
 ): string {
   if (
     timestampMs === null ||
@@ -167,77 +159,22 @@ export function formatKickoffTime(
     return '';
   }
 
-  const hours = String(date.getUTCHours()).padStart(2, '0');
-  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
-  return `${hours}:${minutes} UTC`;
-}
+  const tz =
+    timeZone ||
+    ('Intl' in globalThis
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : 'UTC');
 
-/**
- * Normalizes API-Football match status codes into presentation labels and variants.
- */
-export function formatMatchStatus(
-  status: string | null | undefined,
-  kickoffTime?: number | null,
-): FormattedMatchStatus {
-  const clean = status?.trim().toUpperCase() ?? '';
-
-  switch (clean) {
-    // Full Time & Concluded
-    case 'FT':
-      return { label: 'FT', variant: 'ft', isLive: false };
-    case 'AET':
-      return { label: 'AET', variant: 'ft', isLive: false };
-    case 'PEN':
-      return { label: 'PEN', variant: 'ft', isLive: false };
-
-    // In-Play / Live
-    case '1H':
-      return { label: '1st Half', variant: 'live', isLive: true };
-    case '2H':
-      return { label: '2nd Half', variant: 'live', isLive: true };
-    case 'ET':
-      return { label: 'Extra Time', variant: 'live', isLive: true };
-    case 'P':
-    case 'LIVE':
-      return { label: 'LIVE', variant: 'live', isLive: true };
-
-    // Interval
-    case 'HT':
-      return { label: 'HT', variant: 'ht', isLive: false };
-    case 'BT':
-      return { label: 'Break', variant: 'ht', isLive: false };
-
-    // Postponed / Suspended / Interrupted / Cancelled
-    case 'PST':
-      return { label: 'Postponed', variant: 'postponed', isLive: false };
-    case 'CANC':
-      return { label: 'Cancelled', variant: 'postponed', isLive: false };
-    case 'ABD':
-      return { label: 'Abandoned', variant: 'postponed', isLive: false };
-    case 'SUSP':
-    case 'INT':
-      return { label: 'Suspended', variant: 'postponed', isLive: false };
-
-    // Scheduled / Not Started
-    case 'NS':
-    case 'TBD': {
-      const timeStr = formatKickoffTime(kickoffTime);
-      return {
-        label: timeStr || 'Upcoming',
-        variant: 'upcoming',
-        isLive: false,
-      };
-    }
-
-    // Default / Unset Status
-    default: {
-      if (kickoffTime) {
-        const timeStr = formatKickoffTime(kickoffTime);
-        if (timeStr) {
-          return { label: timeStr, variant: 'upcoming', isLive: false };
-        }
-      }
-      return { label: '', variant: 'unknown', isLive: false };
-    }
+  try {
+    return date.toLocaleTimeString('en-US', {
+      timeZone: tz,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    const hours = String(date.getUTCHours()).padStart(2, '0');
+    const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+    return `${hours}:${minutes} UTC`;
   }
 }

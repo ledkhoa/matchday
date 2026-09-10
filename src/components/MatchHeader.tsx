@@ -1,31 +1,47 @@
+import { useState, useEffect } from 'react';
 import { Clock } from 'lucide-react';
-import { formatMatchStatus } from '#/lib/formatters';
+import { formatKickoffTime } from '#/lib/formatters';
 import { cn } from '#/lib/utils';
 
 export interface MatchHeaderProps {
   competition?: string | null;
   leagueLogo?: string | null;
-  status?: string | null;
   kickoffTime?: number | null;
+  timeZone?: string;
   className?: string;
 }
 
 export function MatchHeader({
   competition,
   leagueLogo,
-  status,
   kickoffTime,
+  timeZone,
   className,
 }: MatchHeaderProps) {
   const cleanCompetition = competition?.trim();
   const cleanLogo = leagueLogo?.trim();
   const hasCompetition = Boolean(cleanCompetition || cleanLogo);
 
-  const formattedStatus = formatMatchStatus(status, kickoffTime);
-  const hasStatus = formattedStatus.variant !== 'unknown';
+  const [activeTz, setActiveTz] = useState<string | undefined>(timeZone);
 
-  // Collapse cleanly with zero margin or padding jitter when neither competition nor status metadata is available
-  if (!hasCompetition && !hasStatus) {
+  useEffect(() => {
+    if (!timeZone && 'Intl' in globalThis) {
+      try {
+        const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (detected && detected !== activeTz) {
+          setActiveTz(detected);
+        }
+      } catch {
+        // Leave activeTz fallback
+      }
+    }
+  }, [timeZone, activeTz]);
+
+  const formattedKickoff = formatKickoffTime(kickoffTime, activeTz);
+  const hasKickoff = Boolean(formattedKickoff);
+
+  // Collapse cleanly with zero margin or padding jitter when neither competition nor kickoff time is available
+  if (!hasCompetition && !hasKickoff) {
     return null;
   }
 
@@ -54,43 +70,16 @@ export function MatchHeader({
         )}
       </div>
 
-      {/* Right: Match Status Badge */}
-      {hasStatus && (
+      {/* Right: Kickoff Time Badge */}
+      {hasKickoff && (
         <div className="shrink-0">
-          {formattedStatus.variant === 'ft' && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-zinc-700/60 bg-zinc-800/70 px-2 py-0.5 text-[10px] font-semibold text-zinc-300 sm:text-xs">
-              {formattedStatus.label}
-            </span>
-          )}
-
-          {formattedStatus.variant === 'live' && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-800/50 bg-rose-950/50 px-2 py-0.5 text-[10px] font-semibold text-rose-300 sm:text-xs">
-              <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-rose-500" />
-              </span>
-              {formattedStatus.label}
-            </span>
-          )}
-
-          {formattedStatus.variant === 'ht' && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-800/50 bg-amber-950/50 px-2 py-0.5 text-[10px] font-semibold text-amber-300 sm:text-xs">
-              {formattedStatus.label}
-            </span>
-          )}
-
-          {formattedStatus.variant === 'upcoming' && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-zinc-800/80 bg-zinc-950/60 px-2 py-0.5 font-mono text-[10px] font-medium text-zinc-400 sm:text-xs">
-              <Clock className="h-3 w-3 text-zinc-500" aria-hidden="true" />
-              {formattedStatus.label}
-            </span>
-          )}
-
-          {formattedStatus.variant === 'postponed' && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-zinc-800 bg-zinc-900 px-2 py-0.5 text-[10px] font-semibold text-zinc-500 sm:text-xs">
-              {formattedStatus.label}
-            </span>
-          )}
+          <span
+            suppressHydrationWarning
+            className="inline-flex items-center gap-1 rounded-full border border-zinc-800/80 bg-zinc-950/60 px-2 py-0.5 font-mono text-[10px] font-medium text-zinc-400 sm:text-xs"
+          >
+            <Clock className="h-3 w-3 text-zinc-500" aria-hidden="true" />
+            Kickoff: {formattedKickoff}
+          </span>
         </div>
       )}
     </div>

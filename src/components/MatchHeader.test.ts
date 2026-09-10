@@ -4,117 +4,62 @@ import { render } from '@testing-library/react';
 import { MatchHeader } from './MatchHeader';
 
 describe('MatchHeader component', () => {
-  it('renders competition logo, competition name, and FT status badge', () => {
+  it('renders competition logo, competition name, and kickoff time badge', () => {
+    const kickoffTime = Date.UTC(2026, 8, 10, 20, 0);
     const { getByText, container } = render(
       React.createElement(MatchHeader, {
-        competition: 'Premier League',
-        leagueLogo: 'https://example.com/epl.png',
-        status: 'FT',
-      }),
-    );
-
-    expect(getByText('Premier League')).toBeDefined();
-    expect(getByText('FT')).toBeDefined();
-
-    const logo = container.querySelector('img');
-    expect(logo).not.toBeNull();
-    expect(logo?.getAttribute('src')).toBe('https://example.com/epl.png');
-    expect(logo?.getAttribute('alt')).toBe('');
-    expect(logo?.getAttribute('aria-hidden')).toBe('true');
-  });
-
-  it('renders live in-play badge with pulsing dot for 2H', () => {
-    const { getByText, container } = render(
-      React.createElement(MatchHeader, {
-        competition: 'La Liga',
-        status: '2H',
-      }),
-    );
-
-    expect(getByText('2nd Half')).toBeDefined();
-    const pingDot = container.querySelector('.animate-ping');
-    expect(pingDot).not.toBeNull();
-  });
-
-  it('renders live in-play badge for 1H and LIVE', () => {
-    const { getByText } = render(
-      React.createElement(MatchHeader, {
-        competition: 'Champions League',
-        status: '1H',
-      }),
-    );
-    expect(getByText('1st Half')).toBeDefined();
-
-    const { getByText: getLive } = render(
-      React.createElement(MatchHeader, {
-        competition: 'Champions League',
-        status: 'LIVE',
-      }),
-    );
-    expect(getLive('LIVE')).toBeDefined();
-  });
-
-  it('renders half-time badge for HT', () => {
-    const { getByText } = render(
-      React.createElement(MatchHeader, {
-        competition: 'Serie A',
-        status: 'HT',
-      }),
-    );
-
-    expect(getByText('HT')).toBeDefined();
-  });
-
-  it('renders upcoming badge with clock icon and formatted UTC kickoff time', () => {
-    const kickoffTime = Date.UTC(2026, 8, 10, 19, 45);
-    const { getByText, container } = render(
-      React.createElement(MatchHeader, {
-        competition: 'Bundesliga',
-        status: 'NS',
+        competition: 'UEFA Champions League',
+        leagueLogo: 'https://example.com/ucl.png',
         kickoffTime,
       }),
     );
 
-    expect(getByText('19:45 UTC')).toBeDefined();
+    expect(getByText('UEFA Champions League')).toBeDefined();
+    expect(getByText(/Kickoff: \d{1,2}:\d{2} [AP]M/)).toBeDefined();
+
+    const logo = container.querySelector('img');
+    expect(logo).not.toBeNull();
+    expect(logo?.getAttribute('src')).toBe('https://example.com/ucl.png');
+    expect(logo?.getAttribute('alt')).toBe('');
+    expect(logo?.getAttribute('aria-hidden')).toBe('true');
+
     const clockIcon = container.querySelector('svg');
     expect(clockIcon).not.toBeNull();
   });
 
-  it('renders upcoming badge with "Upcoming" fallback when kickoff time is absent', () => {
+  it('renders kickoff time badge with clock icon and formatted local kickoff time', () => {
+    const kickoffTime = Date.UTC(2026, 8, 10, 19, 45);
+    const { getByText, container } = render(
+      React.createElement(MatchHeader, {
+        competition: 'Premier League',
+        kickoffTime,
+      }),
+    );
+
+    expect(getByText(/Kickoff: \d{1,2}:\d{2} [AP]M/)).toBeDefined();
+    const clockIcon = container.querySelector('svg');
+    expect(clockIcon).not.toBeNull();
+  });
+
+  it('formats kickoff time using explicit timeZone prop', () => {
+    // 19:00 UTC = 12:00 PM PDT in America/Los_Angeles
+    const kickoffTime = Date.UTC(2026, 8, 10, 19, 0);
     const { getByText } = render(
       React.createElement(MatchHeader, {
-        competition: 'Ligue 1',
-        status: 'NS',
+        competition: 'UEFA Champions League',
+        kickoffTime,
+        timeZone: 'America/Los_Angeles',
       }),
     );
 
-    expect(getByText('Upcoming')).toBeDefined();
+    expect(getByText('Kickoff: 12:00 PM')).toBeDefined();
   });
 
-  it('renders postponed badge for PST and cancelled badge for CANC', () => {
-    const { getByText: getPst } = render(
-      React.createElement(MatchHeader, {
-        competition: 'MLS',
-        status: 'PST',
-      }),
-    );
-    expect(getPst('Postponed')).toBeDefined();
-
-    const { getByText: getCanc } = render(
-      React.createElement(MatchHeader, {
-        competition: 'MLS',
-        status: 'CANC',
-      }),
-    );
-    expect(getCanc('Cancelled')).toBeDefined();
-  });
-
-  it('collapses cleanly to null when neither competition nor status is available', () => {
+  it('collapses cleanly to null when neither competition nor kickoff time is available', () => {
     const { container } = render(
       React.createElement(MatchHeader, {
         competition: null,
         leagueLogo: null,
-        status: null,
         kickoffTime: null,
       }),
     );
@@ -122,39 +67,41 @@ describe('MatchHeader component', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('collapses cleanly to null when strings are empty or whitespace only', () => {
+  it('collapses cleanly to null when strings are empty or whitespace only and kickoffTime is absent', () => {
     const { container } = render(
       React.createElement(MatchHeader, {
         competition: '   ',
         leagueLogo: '',
-        status: '',
+        kickoffTime: null,
       }),
     );
 
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders competition only without status badge when status is absent', () => {
-    const { getByText, queryByText } = render(
+  it('renders competition only without kickoff badge when kickoffTime is absent', () => {
+    const { getByText, container } = render(
       React.createElement(MatchHeader, {
         competition: 'Eredivisie',
-        status: null,
+        kickoffTime: null,
       }),
     );
 
     expect(getByText('Eredivisie')).toBeDefined();
-    expect(queryByText('FT')).toBeNull();
+    const clockIcon = container.querySelector('svg');
+    expect(clockIcon).toBeNull();
   });
 
-  it('renders status badge only when competition is absent', () => {
+  it('renders kickoff badge only when competition is absent', () => {
+    const kickoffTime = Date.UTC(2026, 8, 10, 15, 30);
     const { getByText, container } = render(
       React.createElement(MatchHeader, {
         competition: null,
-        status: 'FT',
+        kickoffTime,
       }),
     );
 
-    expect(getByText('FT')).toBeDefined();
+    expect(getByText(/Kickoff: \d{1,2}:\d{2} [AP]M/)).toBeDefined();
     const img = container.querySelector('img');
     expect(img).toBeNull();
   });

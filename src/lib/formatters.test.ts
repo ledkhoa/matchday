@@ -3,7 +3,6 @@ import {
   computeMatchScore,
   formatGoalScore,
   formatKickoffTime,
-  formatMatchStatus,
   getTagCategory,
   getTeamInitials,
 } from './formatters';
@@ -153,19 +152,25 @@ describe('formatters', () => {
   });
 
   describe('formatKickoffTime', () => {
-    it('formats valid epoch timestamp into HH:mm UTC', () => {
-      const ts = Date.UTC(2026, 8, 10, 19, 45);
-      expect(formatKickoffTime(ts)).toBe('19:45 UTC');
+    it('formats valid epoch timestamp into localized 12-hour time with timezone override', () => {
+      // 1789007400000 = 2026-09-10T02:30:00Z
+      const ts = 1789007400000;
+      // In America/Los_Angeles (UTC-7 PDT): 7:30 PM
+      expect(formatKickoffTime(ts, 'America/Los_Angeles')).toBe('7:30 PM');
+      // In America/New_York (UTC-4 EDT): 10:30 PM
+      expect(formatKickoffTime(ts, 'America/New_York')).toBe('10:30 PM');
+      // In UTC: 2:30 AM
+      expect(formatKickoffTime(ts, 'UTC')).toBe('2:30 AM');
     });
 
-    it('handles midnight UTC boundary (00:00 UTC)', () => {
+    it('handles midnight boundary in specified timezone', () => {
       const ts = Date.UTC(2026, 8, 10, 0, 0);
-      expect(formatKickoffTime(ts)).toBe('00:00 UTC');
+      expect(formatKickoffTime(ts, 'UTC')).toBe('12:00 AM');
     });
 
-    it('zero-pads single-digit hours and minutes', () => {
+    it('zero-pads minutes and preserves single-digit hours in 12h format', () => {
       const ts = Date.UTC(2026, 8, 10, 9, 5);
-      expect(formatKickoffTime(ts)).toBe('09:05 UTC');
+      expect(formatKickoffTime(ts, 'UTC')).toBe('9:05 AM');
     });
 
     it('returns empty string for null, undefined, NaN, zero, and negative values', () => {
@@ -174,158 +179,6 @@ describe('formatters', () => {
       expect(formatKickoffTime(Number.NaN)).toBe('');
       expect(formatKickoffTime(0)).toBe('');
       expect(formatKickoffTime(-12345678)).toBe('');
-    });
-  });
-
-  describe('formatMatchStatus', () => {
-    it('normalizes concluded matches (FT, AET, PEN)', () => {
-      expect(formatMatchStatus('FT')).toEqual({
-        label: 'FT',
-        variant: 'ft',
-        isLive: false,
-      });
-      expect(formatMatchStatus('ft')).toEqual({
-        label: 'FT',
-        variant: 'ft',
-        isLive: false,
-      });
-      expect(formatMatchStatus('AET')).toEqual({
-        label: 'AET',
-        variant: 'ft',
-        isLive: false,
-      });
-      expect(formatMatchStatus('PEN')).toEqual({
-        label: 'PEN',
-        variant: 'ft',
-        isLive: false,
-      });
-    });
-
-    it('normalizes in-play / live matches (1H, 2H, ET, P, LIVE)', () => {
-      expect(formatMatchStatus('1H')).toEqual({
-        label: '1st Half',
-        variant: 'live',
-        isLive: true,
-      });
-      expect(formatMatchStatus('2H')).toEqual({
-        label: '2nd Half',
-        variant: 'live',
-        isLive: true,
-      });
-      expect(formatMatchStatus('ET')).toEqual({
-        label: 'Extra Time',
-        variant: 'live',
-        isLive: true,
-      });
-      expect(formatMatchStatus('LIVE')).toEqual({
-        label: 'LIVE',
-        variant: 'live',
-        isLive: true,
-      });
-      expect(formatMatchStatus('P')).toEqual({
-        label: 'LIVE',
-        variant: 'live',
-        isLive: true,
-      });
-    });
-
-    it('normalizes interval matches (HT, BT)', () => {
-      expect(formatMatchStatus('HT')).toEqual({
-        label: 'HT',
-        variant: 'ht',
-        isLive: false,
-      });
-      expect(formatMatchStatus('BT')).toEqual({
-        label: 'Break',
-        variant: 'ht',
-        isLive: false,
-      });
-    });
-
-    it('normalizes upcoming matches (NS, TBD)', () => {
-      const ts = Date.UTC(2026, 8, 10, 19, 45);
-      expect(formatMatchStatus('NS', ts)).toEqual({
-        label: '19:45 UTC',
-        variant: 'upcoming',
-        isLive: false,
-      });
-      expect(formatMatchStatus('NS', null)).toEqual({
-        label: 'Upcoming',
-        variant: 'upcoming',
-        isLive: false,
-      });
-      expect(formatMatchStatus('TBD', ts)).toEqual({
-        label: '19:45 UTC',
-        variant: 'upcoming',
-        isLive: false,
-      });
-      expect(formatMatchStatus('TBD')).toEqual({
-        label: 'Upcoming',
-        variant: 'upcoming',
-        isLive: false,
-      });
-    });
-
-    it('normalizes postponed, cancelled, and suspended matches (PST, CANC, ABD, SUSP, INT)', () => {
-      expect(formatMatchStatus('PST')).toEqual({
-        label: 'Postponed',
-        variant: 'postponed',
-        isLive: false,
-      });
-      expect(formatMatchStatus('CANC')).toEqual({
-        label: 'Cancelled',
-        variant: 'postponed',
-        isLive: false,
-      });
-      expect(formatMatchStatus('ABD')).toEqual({
-        label: 'Abandoned',
-        variant: 'postponed',
-        isLive: false,
-      });
-      expect(formatMatchStatus('SUSP')).toEqual({
-        label: 'Suspended',
-        variant: 'postponed',
-        isLive: false,
-      });
-      expect(formatMatchStatus('INT')).toEqual({
-        label: 'Suspended',
-        variant: 'postponed',
-        isLive: false,
-      });
-    });
-
-    it('handles unset or unknown status with and without kickoffTime', () => {
-      const ts = Date.UTC(2026, 8, 10, 14, 0);
-      expect(formatMatchStatus(null, ts)).toEqual({
-        label: '14:00 UTC',
-        variant: 'upcoming',
-        isLive: false,
-      });
-      expect(formatMatchStatus(undefined, ts)).toEqual({
-        label: '14:00 UTC',
-        variant: 'upcoming',
-        isLive: false,
-      });
-      expect(formatMatchStatus('UNKNOWN_CODE', ts)).toEqual({
-        label: '14:00 UTC',
-        variant: 'upcoming',
-        isLive: false,
-      });
-      expect(formatMatchStatus(null, null)).toEqual({
-        label: '',
-        variant: 'unknown',
-        isLive: false,
-      });
-      expect(formatMatchStatus('', undefined)).toEqual({
-        label: '',
-        variant: 'unknown',
-        isLive: false,
-      });
-      expect(formatMatchStatus('   ', null)).toEqual({
-        label: '',
-        variant: 'unknown',
-        isLive: false,
-      });
     });
   });
 });

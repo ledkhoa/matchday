@@ -16,6 +16,7 @@ import * as reactQuery from '@tanstack/react-query';
 import {
   isValidIsoDate,
   loadDateRoute,
+  resolveRequestTimezone,
   Route,
   DateRouteComponent,
   dateRouteSearchSchema,
@@ -105,7 +106,8 @@ describe('Date route loader (/date/$date)', () => {
       matches: [],
     };
 
-    queryClient.setQueryData(['matches', '2026-09-09'], expectedData);
+    const tz = resolveRequestTimezone();
+    queryClient.setQueryData(['matches', '2026-09-09', tz], expectedData);
     const spy = spyOn(queryClient, 'ensureQueryData');
 
     const result = await loadDateRoute({

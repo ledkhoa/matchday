@@ -17,7 +17,8 @@ import { cn } from '#/lib/utils';
 import {
   addDaysToIsoDate,
   formatDisplayDate,
-  getTodayUtcString,
+  getClientTimezone,
+  getTodayDateString,
   isFutureDate,
   isTodayDate,
 } from '#/lib/date-utils';
@@ -29,10 +30,12 @@ export interface DateNavProps {
 export function DateNav({ currentDate }: DateNavProps) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const clientTz = getClientTimezone();
 
   const prevDate = addDaysToIsoDate(currentDate, -1);
   const nextDate = addDaysToIsoDate(currentDate, 1);
-  const isNextDisabled = isTodayDate(currentDate) || isFutureDate(nextDate);
+  const isNextDisabled =
+    isTodayDate(currentDate, clientTz) || isFutureDate(nextDate, clientTz);
 
   const [y, m, d] = currentDate.split('-').map(Number);
   const currentDateObj = new Date(y, m - 1, d);
@@ -47,7 +50,10 @@ export function DateNav({ currentDate }: DateNavProps) {
   };
 
   const handleTodayClick = () => {
-    navigate({ to: '/date/$date', params: { date: getTodayUtcString() } });
+    navigate({
+      to: '/date/$date',
+      params: { date: getTodayDateString(clientTz) },
+    });
   };
 
   const handleSelect = (selectedDate: Date | undefined) => {
@@ -105,12 +111,12 @@ export function DateNav({ currentDate }: DateNavProps) {
               defaultMonth={currentDateObj}
               onSelect={handleSelect}
               disabled={(date) => {
-                const todayUtc = getTodayUtcString();
+                const todayLocal = getTodayDateString(clientTz);
                 const year = date.getFullYear();
                 const month = String(date.getMonth() + 1).padStart(2, '0');
                 const day = String(date.getDate()).padStart(2, '0');
                 const iso = `${year}-${month}-${day}`;
-                return iso > todayUtc || iso < '2020-01-01';
+                return iso > todayLocal || iso < '2020-01-01';
               }}
             />
           </PopoverContent>
@@ -133,7 +139,7 @@ export function DateNav({ currentDate }: DateNavProps) {
         </Button>
       </div>
 
-      {!isTodayDate(currentDate) && (
+      {!isTodayDate(currentDate, clientTz) && (
         <Button
           variant="outline"
           size="sm"

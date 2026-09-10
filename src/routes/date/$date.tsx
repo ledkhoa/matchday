@@ -4,6 +4,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { Trophy } from 'lucide-react';
+import { getCookie } from '@tanstack/react-start/server';
 import { matchDayQueryOptions } from '../../integrations/tanstack-query/root-provider';
 import { DateNav } from '#/components/DateNav';
 import { MatchCard } from '#/components/MatchCard';
@@ -17,6 +18,24 @@ export const dateRouteSearchSchema = z.object({
 });
 
 export type DateRouteSearch = z.infer<typeof dateRouteSearchSchema>;
+
+/**
+ * Resolves the viewer's timezone from client Intl or server cookie.
+ */
+export function resolveRequestTimezone(): string {
+  if ('document' in globalThis && 'Intl' in globalThis) {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      return 'UTC';
+    }
+  }
+  try {
+    return getCookie('tz') || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
 
 /**
  * Validates that a string is a calendar-valid ISO 8601 date (YYYY-MM-DD).
@@ -51,12 +70,16 @@ export async function loadDateRoute({
     throw notFound();
   }
 
-  // 2. Pre-fetch via TanStack Query client for SSR hydration
-  return await context.queryClient.ensureQueryData(matchDayQueryOptions(date));
+  // 2. Pre-fetch via TanStack Query client for SSR hydration respecting viewer timezone
+  const tz = resolveRequestTimezone();
+  return await context.queryClient.ensureQueryData(
+    matchDayQueryOptions(date, tz),
+  );
 }
 
 export function DateRouteComponent() {
   const { date } = Route.useParams();
+  const tz = useMemo(() => resolveRequestTimezone(), []);
 
   // SAFETY: Safely resolve active league from URL search params with fallback for test mocks
   let activeLeague: string | undefined;
@@ -68,7 +91,7 @@ export function DateRouteComponent() {
   }
 
   const navigate = useNavigate();
-  const { data } = useSuspenseQuery(matchDayQueryOptions(date));
+  const { data } = useSuspenseQuery(matchDayQueryOptions(date, tz));
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(
     null,
   );
@@ -171,6 +194,7 @@ export function DateRouteComponent() {
                 key={match.id}
                 match={match}
                 activeHighlightId={activeHighlightId}
+                timeZone={tz}
                 onSelectHighlight={(hl) =>
                   setActiveHighlightId((prev) =>
                     prev === hl.id ? null : hl.id,

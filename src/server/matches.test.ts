@@ -9,6 +9,7 @@ import type {
 } from '@cloudflare/workers-types';
 import {
   validateMatchDateParam,
+  validateFetchMatchesInput,
   handleFetchMatches,
   getMatchesForDate,
   fetchMatchesForDate,
@@ -109,7 +110,7 @@ class TestD1Database implements D1Database {
   }
 }
 
-describe('validateMatchDateParam', () => {
+describe('validateMatchDateParam & validateFetchMatchesInput', () => {
   it('accepts valid ISO dates (YYYY-MM-DD)', () => {
     expect(validateMatchDateParam('2026-09-09')).toBe('2026-09-09');
     expect(validateMatchDateParam('2024-02-29')).toBe('2024-02-29');
@@ -124,6 +125,28 @@ describe('validateMatchDateParam', () => {
       'Invalid date parameter',
     );
     expect(() => validateMatchDateParam('')).toThrow('Invalid date parameter');
+  });
+
+  it('validates FetchMatchesInput objects with date and timezone', () => {
+    const res = validateFetchMatchesInput({
+      date: '2026-09-09',
+      tz: 'America/Los_Angeles',
+    });
+    expect(res).toEqual({ date: '2026-09-09', tz: 'America/Los_Angeles' });
+  });
+
+  it('validates string input directly in validateFetchMatchesInput', () => {
+    const res = validateFetchMatchesInput('2026-09-09');
+    expect(res).toEqual({ date: '2026-09-09' });
+  });
+
+  it('throws for invalid input shapes', () => {
+    expect(() => validateFetchMatchesInput(null)).toThrow(
+      'Invalid query parameters',
+    );
+    expect(() => validateFetchMatchesInput({ date: 'invalid' })).toThrow(
+      'Invalid date parameter',
+    );
   });
 });
 
@@ -149,11 +172,33 @@ describe('handleFetchMatches & getMatchesForDate', () => {
     consoleLogSpy.mockRestore();
   });
 
-  it('executes getMatchesForDate with Drizzle database instance', async () => {
+  it('queries D1 with object input containing timezone', async () => {
+    const testDb = new TestD1Database();
+    const env: CloudflareEnv = {
+      DB: testDb,
+    };
+
+    const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    const result = await handleFetchMatches(
+      { date: '2026-09-09', tz: 'America/Los_Angeles' },
+      env,
+    );
+    expect(result.date).toBe('2026-09-09');
+    expect(Array.isArray(result.matches)).toBe(true);
+
+    consoleLogSpy.mockRestore();
+  });
+
+  it('executes getMatchesForDate with Drizzle database instance and timezone', async () => {
     const testDb = new TestD1Database();
     const db = createDb(testDb);
 
-    const matches = await getMatchesForDate(db, '2026-09-09');
+    const matches = await getMatchesForDate(
+      db,
+      '2026-09-09',
+      'America/Los_Angeles',
+    );
     expect(Array.isArray(matches)).toBe(true);
     expect(testDb.executedQueries.length).toBeGreaterThan(0);
   });

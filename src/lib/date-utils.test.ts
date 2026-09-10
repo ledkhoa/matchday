@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'bun:test';
 import {
   getTodayUtcString,
+  getTodayDateString,
+  getClientTimezone,
+  getZonedDayRange,
   addDaysToIsoDate,
   formatDisplayDate,
   isTodayDate,
@@ -87,6 +90,62 @@ describe('date-utils', () => {
       expect(isFutureDate(today)).toBe(false);
       expect(isFutureDate(yesterday)).toBe(false);
       expect(isFutureDate('2020-01-01')).toBe(false);
+    });
+
+    it('respects timezone parameter for isTodayDate and isFutureDate', () => {
+      const tokyoToday = getTodayDateString('Asia/Tokyo');
+      expect(isTodayDate(tokyoToday, 'Asia/Tokyo')).toBe(true);
+      const tomorrow = addDaysToIsoDate(tokyoToday, 1);
+      expect(isFutureDate(tomorrow, 'Asia/Tokyo')).toBe(true);
+    });
+  });
+
+  describe('getClientTimezone & getTodayDateString', () => {
+    it('returns a non-empty string for getClientTimezone', () => {
+      const tz = getClientTimezone();
+      expect(tz.length).toBeGreaterThan(0);
+    });
+
+    it('formats today in specified timezone', () => {
+      const laToday = getTodayDateString('America/Los_Angeles');
+      expect(laToday).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+  });
+
+  describe('getZonedDayRange', () => {
+    it('calculates exact UTC millisecond bounds for UTC day', () => {
+      const { startMs, endMs } = getZonedDayRange('2026-09-09', 'UTC');
+      expect(startMs).toBe(Date.UTC(2026, 8, 9, 0, 0, 0, 0));
+      expect(endMs).toBe(Date.UTC(2026, 8, 9, 23, 59, 59, 999));
+      expect(endMs - startMs).toBe(86400000 - 1);
+    });
+
+    it('calculates exact UTC millisecond bounds for America/Los_Angeles (PDT, UTC-7)', () => {
+      const { startMs, endMs } = getZonedDayRange(
+        '2026-09-09',
+        'America/Los_Angeles',
+      );
+      // Sep 9 00:00 PDT = Sep 9 07:00 UTC
+      expect(startMs).toBe(Date.UTC(2026, 8, 9, 7, 0, 0, 0));
+      // Sep 9 23:59:59.999 PDT = Sep 10 06:59:59.999 UTC
+      expect(endMs).toBe(Date.UTC(2026, 8, 10, 6, 59, 59, 999));
+
+      // MLS Match at 2026-09-10 02:30 UTC (7:30 PM PDT on Sep 9)
+      const mlsKickoff = Date.UTC(2026, 8, 10, 2, 30, 0);
+      expect(mlsKickoff >= startMs && mlsKickoff <= endMs).toBe(true);
+
+      // On Sep 10 in LA, that match should NOT be included
+      const sep10Range = getZonedDayRange('2026-09-10', 'America/Los_Angeles');
+      expect(
+        mlsKickoff >= sep10Range.startMs && mlsKickoff <= sep10Range.endMs,
+      ).toBe(false);
+    });
+
+    it('handles invalid dates or timezones gracefully with fallback', () => {
+      const { startMs, endMs } = getZonedDayRange('invalid', 'Invalid/Zone');
+      expect(Number.isFinite(startMs)).toBe(true);
+      expect(Number.isFinite(endMs)).toBe(true);
+      expect(endMs).toBeGreaterThan(startMs);
     });
   });
 });
