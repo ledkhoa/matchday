@@ -36,7 +36,7 @@ export async function handleFixturesPost(
 
   // 1. Resolve Cloudflare environment bindings
   const env = context?.env;
-  const expectedSecret = env?.CRON_SECRET ?? 'dev_secret';
+  const expectedSecret = env?.CRON_SECRET;
 
   // 2. Enforce Bearer authentication
   const authHeader = request.headers.get('Authorization');
@@ -44,7 +44,7 @@ export async function handleFixturesPost(
     ? authHeader.slice(7).trim()
     : null;
 
-  if (!token || token !== expectedSecret) {
+  if (!expectedSecret || !token || token !== expectedSecret) {
     const body: FixturesErrorResponse = {
       success: false,
       error: 'Unauthorized',

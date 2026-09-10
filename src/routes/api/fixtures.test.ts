@@ -203,6 +203,28 @@ describe('/api/fixtures handler', () => {
     expect(body.error).toBe('Unauthorized');
   });
 
+  it('rejects request when CRON_SECRET is unset (401)', async () => {
+    const env: CloudflareEnv = {
+      DB: new TestD1Database(),
+      CRON_SECRET: undefined,
+      API_FOOTBALL_KEY: 'test-api-key',
+    };
+
+    const request = new Request('http://localhost/api/fixtures', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer some-token',
+      },
+    });
+
+    const response = await handleFixturesPost(request, { env });
+    expect(response.status).toBe(401);
+
+    const body = ErrorResponseSchema.parse(await response.json());
+    expect(body.success).toBe(false);
+    expect(body.error).toBe('Unauthorized');
+  });
+
   it('rejects invalid date format in request body (400)', async () => {
     const env: CloudflareEnv = {
       DB: new TestD1Database(),
