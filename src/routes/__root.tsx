@@ -6,7 +6,7 @@ import {
 } from '@tanstack/react-router';
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
 import { TanStackDevtools } from '@tanstack/react-devtools';
-import { CircleDot, ExternalLink, Github } from 'lucide-react';
+import { CircleDot, ExternalLink } from 'lucide-react';
 
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools';
 import { TooltipProvider } from '#/components/ui/tooltip';
@@ -30,7 +30,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'MatchDay - Soccer Highlights Digest',
+        title: 'MatchDay - Football Highlights Digest',
       },
     ],
     links: [
@@ -89,16 +89,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                   >
                     <span>r/soccer</span>
                     <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                  <div className="h-4 w-px bg-zinc-800" />
-                  <a
-                    href="https://github.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-zinc-400 transition-colors hover:text-zinc-100"
-                    aria-label="View source on GitHub"
-                  >
-                    <Github className="h-4 w-4" />
                   </a>
                 </div>
               </div>
