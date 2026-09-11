@@ -139,8 +139,19 @@ export function MatchCard({
 }: MatchCardProps) {
   const sortedHighlights = sortHighlightsChronologically(match.highlights);
   const displayScore = resolveDisplayScore(match, sortedHighlights);
+  const activeHighlightIndex = sortedHighlights.findIndex(
+    (h) => h.id === activeHighlightId,
+  );
   const activeHighlight =
-    sortedHighlights.find((h) => h.id === activeHighlightId) ?? null;
+    activeHighlightIndex !== -1 ? sortedHighlights[activeHighlightIndex] : null;
+  const activeGoalScore = activeHighlight
+    ? formatGoalScore(
+        activeHighlight,
+        activeHighlightIndex > 0
+          ? sortedHighlights[activeHighlightIndex - 1]
+          : undefined,
+      )
+    : null;
 
   const highlightIds = useMemo(
     () => sortedHighlights.map((h) => h.id),
@@ -224,6 +235,7 @@ export function MatchCard({
       {activeHighlight && (
         <HighlightPlayer
           highlight={activeHighlight}
+          goalScore={activeGoalScore}
           onClose={onCloseHighlight}
         />
       )}

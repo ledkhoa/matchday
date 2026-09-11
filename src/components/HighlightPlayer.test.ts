@@ -143,6 +143,25 @@ describe('HighlightPlayer component', () => {
     );
   });
 
+  it('renders dedicated external header with scorer, minute, score and tag', () => {
+    const highlight = createMockHighlight({
+      scorer: 'Bukayo Saka',
+      minute: "14'",
+      tag: 'Penalty',
+    });
+    const { getByText } = render(
+      React.createElement(HighlightPlayer, {
+        highlight,
+        goalScore: '[1] - 0',
+        onClose: () => {},
+      }),
+    );
+
+    expect(getByText(/Bukayo Saka 14'/)).toBeDefined();
+    expect(getByText('[1] - 0')).toBeDefined();
+    expect(getByText('Penalty')).toBeDefined();
+  });
+
   it('triggers onClose callback when close button is clicked', () => {
     const closeSpy = mock(() => {});
     const highlight = createMockHighlight();
@@ -158,8 +177,24 @@ describe('HighlightPlayer component', () => {
     expect(closeSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('renders Reddit discussion link', () => {
+  it('triggers onClose callback when Escape key is pressed', () => {
+    const closeSpy = mock(() => {});
     const highlight = createMockHighlight();
+    render(
+      React.createElement(HighlightPlayer, {
+        highlight,
+        onClose: closeSpy,
+      }),
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders unified action bar with Reddit discussion and source host pills', () => {
+    const highlight = createMockHighlight({
+      sourceUrl: 'https://dubz.co/c/abc123',
+    });
     const { getByRole } = render(
       React.createElement(HighlightPlayer, {
         highlight,
@@ -174,5 +209,11 @@ describe('HighlightPlayer component', () => {
     expect(redditLink.getAttribute('href')).toBe(
       'https://reddit.com/r/soccer/comments/xyz/saka_goal',
     );
+
+    const sourceLink = getByRole('link', {
+      name: /dubz\.co/i,
+    });
+    expect(sourceLink).toBeDefined();
+    expect(sourceLink.getAttribute('href')).toBe('https://dubz.co/c/abc123');
   });
 });
