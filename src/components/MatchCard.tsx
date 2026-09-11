@@ -2,9 +2,9 @@ import { useMemo } from 'react';
 import { Play, Check } from 'lucide-react';
 import type { MatchWithHighlights, Highlight } from '#/db/schema';
 import {
-  computeMatchScore,
   formatGoalScore,
   getTagCategory,
+  resolveDisplayScore,
   sortHighlightsChronologically,
 } from '#/lib/formatters';
 import { cn } from '#/lib/utils';
@@ -138,7 +138,7 @@ export function MatchCard({
   timeZone,
 }: MatchCardProps) {
   const sortedHighlights = sortHighlightsChronologically(match.highlights);
-  const computedScore = computeMatchScore(sortedHighlights);
+  const displayScore = resolveDisplayScore(match, sortedHighlights);
   const activeHighlight =
     sortedHighlights.find((h) => h.id === activeHighlightId) ?? null;
 
@@ -182,8 +182,8 @@ export function MatchCard({
         {/* Scoreline Badge */}
         <div className="flex shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950/90 px-3 py-1 shadow-inner sm:px-4 sm:py-1.5">
           <span className="font-mono text-base font-black tracking-wider text-yellow-400 tabular-nums sm:text-lg">
-            {computedScore
-              ? `${computedScore.home} - ${computedScore.away}`
+            {displayScore
+              ? `${displayScore.home} - ${displayScore.away}`
               : 'VS'}
           </span>
         </div>

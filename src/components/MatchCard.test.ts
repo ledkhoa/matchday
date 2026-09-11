@@ -21,6 +21,8 @@ function makeTestMatch(highlights: Highlight[] = []): MatchWithHighlights {
     teamAwayLogo: null,
     kickoffTime: null,
     status: null,
+    scoreHome: null,
+    scoreAway: null,
     createdAt: 1694250000,
     updatedAt: 1694260000,
     highlights,
@@ -78,6 +80,26 @@ describe('MatchCard component', () => {
     expect(getByText('ARS')).toBeDefined();
     expect(getByText('BHA')).toBeDefined();
     expect(getByText('2 - 1')).toBeDefined();
+  });
+
+  it('renders official scoreline (e.g. 0 - 0) when match has official scores and no highlights', () => {
+    const match = {
+      ...makeTestMatch([]),
+      scoreHome: 0,
+      scoreAway: 0,
+      status: 'FT',
+    };
+
+    const { getByText } = render(
+      React.createElement(MatchCard, {
+        match,
+        activeHighlightId: null,
+        onSelectHighlight: () => {},
+        onCloseHighlight: () => {},
+      }),
+    );
+
+    expect(getByText('0 - 0')).toBeDefined();
   });
 
   it('renders goal chips in chronological order', () => {

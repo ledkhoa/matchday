@@ -48,6 +48,9 @@ export async function syncDailyFixtures(
 
   for (const item of fetchResult.supportedFixtures) {
     const matchDate = new Date(item.fixture.date).toISOString().slice(0, 10);
+    const scoreHome = item.goals?.home ?? null;
+    const scoreAway = item.goals?.away ?? null;
+
     const matchRecord: schema.NewMatch = {
       id: String(item.fixture.id),
       externalId: item.fixture.id,
@@ -60,6 +63,8 @@ export async function syncDailyFixtures(
       teamAwayLogo: item.teams.away.logo ?? null,
       kickoffTime: item.fixture.timestamp * 1000,
       status: item.fixture.status.short ?? 'NS',
+      scoreHome,
+      scoreAway,
       createdAt: now,
       updatedAt: now,
     };
@@ -80,6 +85,8 @@ export async function syncDailyFixtures(
             teamAwayLogo: matchRecord.teamAwayLogo,
             kickoffTime: matchRecord.kickoffTime,
             status: matchRecord.status,
+            scoreHome: matchRecord.scoreHome,
+            scoreAway: matchRecord.scoreAway,
             updatedAt: now,
           },
         }),

@@ -25,6 +25,26 @@ export function computeMatchScore(highlights: Highlight[]): MatchScore | null {
 }
 
 /**
+ * Resolves the display scoreline for a match.
+ * Prefers the official score from API-Football (especially for 0-0 draws or matches without Reddit clips).
+ * Falls back to computing the score from highlight clips, and returns null if neither exists.
+ */
+export function resolveDisplayScore(
+  match: { scoreHome?: number | null; scoreAway?: number | null },
+  highlights: Highlight[],
+): MatchScore | null {
+  if (
+    match.scoreHome !== null &&
+    match.scoreHome !== undefined &&
+    match.scoreAway !== null &&
+    match.scoreAway !== undefined
+  ) {
+    return { home: match.scoreHome, away: match.scoreAway };
+  }
+  return computeMatchScore(highlights);
+}
+
+/**
  * Formats goal scoreline with brackets indicating scoring team (e.g. "[1] - 0" or "1 - [1]").
  */
 export function formatGoalScore(

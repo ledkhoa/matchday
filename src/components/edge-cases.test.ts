@@ -54,6 +54,8 @@ function makeMatch(
     teamAwayLogo: null,
     kickoffTime: null,
     status: null,
+    scoreHome: null,
+    scoreAway: null,
     createdAt: 1694250000,
     updatedAt: 1694260000,
     highlights,

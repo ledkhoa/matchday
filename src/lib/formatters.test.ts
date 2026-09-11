@@ -5,6 +5,7 @@ import {
   formatKickoffTime,
   getTagCategory,
   getTeamInitials,
+  resolveDisplayScore,
 } from './formatters';
 import type { Highlight } from '#/db/schema';
 
@@ -53,6 +54,36 @@ describe('formatters', () => {
         makeHighlight({ id: '2', scoreHome: null, scoreAway: null }),
       ];
       expect(computeMatchScore(hls)).toEqual({ home: 1, away: 0 });
+    });
+  });
+
+  describe('resolveDisplayScore', () => {
+    it('returns official score when scoreHome and scoreAway are present, even for 0-0', () => {
+      expect(resolveDisplayScore({ scoreHome: 0, scoreAway: 0 }, [])).toEqual({
+        home: 0,
+        away: 0,
+      });
+    });
+
+    it('prefers official score over computed score from highlights', () => {
+      const hls = [makeHighlight({ scoreHome: 1, scoreAway: 0 })];
+      expect(resolveDisplayScore({ scoreHome: 2, scoreAway: 1 }, hls)).toEqual({
+        home: 2,
+        away: 1,
+      });
+    });
+
+    it('falls back to computeMatchScore when official scores are null', () => {
+      const hls = [makeHighlight({ scoreHome: 3, scoreAway: 2 })];
+      expect(
+        resolveDisplayScore({ scoreHome: null, scoreAway: null }, hls),
+      ).toEqual({ home: 3, away: 2 });
+    });
+
+    it('returns null when both official scores and highlights are absent', () => {
+      expect(
+        resolveDisplayScore({ scoreHome: null, scoreAway: null }, []),
+      ).toBeNull();
     });
   });
 

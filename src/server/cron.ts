@@ -41,7 +41,10 @@ export async function handleScheduled(
 
       try {
         if (event.cron === '0 0 * * *') {
-          // Midnight UTC: Sync daily official fixtures
+          // Midnight UTC: Sync daily official fixtures for today and yesterday.
+          // We sync today to discover upcoming matches and logos, and yesterday to
+          // finalize official scores and statuses (FT) after all games conclude,
+          // preserving free-tier quotas with only 2 API requests per day.
           console.log(
             '[CRON] Dispatching daily official fixtures synchronization',
           );
@@ -51,15 +54,49 @@ export async function handleScheduled(
             );
             return;
           }
-          const result = await syncDailyFixtures(env.DB, env.API_FOOTBALL_KEY);
-          console.log(
-            `[CRON] Fixture sync completed in ${Date.now() - startTime}ms: found=${result.supportedFound}, persisted=${result.persistedCount}`,
+
+          // 1. Sync today's fixtures
+          const todayResult = await syncDailyFixtures(
+            env.DB,
+            env.API_FOOTBALL_KEY,
           );
-          if (result.errors.length > 0) {
+          console.log(
+            `[CRON] Today fixture sync completed: found=${todayResult.supportedFound}, persisted=${todayResult.persistedCount}`,
+          );
+          if (todayResult.errors.length > 0) {
             console.error(
-              `[CRON] Fixture sync reported errors: ${JSON.stringify(result.errors)}`,
+              `[CRON] Today fixture sync reported errors: ${JSON.stringify(todayResult.errors)}`,
             );
           }
+
+          // 2. Sync yesterday's fixtures to record final scores and statuses
+          const scheduledDate = new Date(event.scheduledTime || Date.now());
+          const yesterday = new Date(
+            scheduledDate.getTime() - 24 * 60 * 60 * 1000,
+          )
+            .toISOString()
+            .slice(0, 10);
+
+          console.log(
+            `[CRON] Dispatching previous day fixture sync for ${yesterday}`,
+          );
+          const yesterdayResult = await syncDailyFixtures(
+            env.DB,
+            env.API_FOOTBALL_KEY,
+            yesterday,
+          );
+          console.log(
+            `[CRON] Yesterday (${yesterday}) fixture sync completed: found=${yesterdayResult.supportedFound}, persisted=${yesterdayResult.persistedCount}`,
+          );
+          if (yesterdayResult.errors.length > 0) {
+            console.error(
+              `[CRON] Yesterday fixture sync reported errors: ${JSON.stringify(yesterdayResult.errors)}`,
+            );
+          }
+
+          console.log(
+            `[CRON] Midnight fixture sync process finished in ${Date.now() - startTime}ms`,
+          );
         } else {
           // Default / 5-minute trigger ("*/5 * * * *"): Ingest Reddit highlights
           console.log('[CRON] Dispatching 5-minute Reddit highlight ingestion');

@@ -17,6 +17,8 @@ export const matches = sqliteTable(
     teamAwayLogo: text('team_away_logo'),
     kickoffTime: integer('kickoff_time', { mode: 'number' }),
     status: text('status'),
+    scoreHome: integer('score_home'),
+    scoreAway: integer('score_away'),
 
     createdAt: integer('created_at', { mode: 'number' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'number' }).notNull(),

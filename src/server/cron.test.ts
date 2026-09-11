@@ -156,9 +156,9 @@ describe('handleScheduled', () => {
       API_FOOTBALL_KEY: 'test-api-key',
     };
 
-    let requestedUrl = '';
+    const requestedUrls: string[] = [];
     globalThis.fetch = createMockFetch(async (input) => {
-      requestedUrl = String(input);
+      requestedUrls.push(String(input));
       return new Response(
         JSON.stringify({
           get: 'fixtures',
@@ -176,6 +176,7 @@ describe('handleScheduled', () => {
                 home: { id: 1, name: 'Arsenal' },
                 away: { id: 2, name: 'Chelsea' },
               },
+              goals: { home: 0, away: 0 },
             },
           ],
         }),
@@ -192,7 +193,12 @@ describe('handleScheduled', () => {
     expect(ctx.promises.length).toBe(1);
     await Promise.all(ctx.promises);
 
-    expect(requestedUrl).toContain('v3.football.api-sports.io/fixtures');
+    expect(requestedUrls.length).toBe(2);
+    expect(
+      requestedUrls.every((url) =>
+        url.includes('v3.football.api-sports.io/fixtures'),
+      ),
+    ).toBe(true);
     expect(consoleLogSpy).toHaveBeenCalled();
     consoleLogSpy.mockRestore();
   });

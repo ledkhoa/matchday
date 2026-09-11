@@ -78,6 +78,7 @@ describe('fetchDailyFixtures', () => {
                   logo: 'https://media.api-sports.io/football/teams/40.png',
                 },
               },
+              goals: { home: 2, away: 1 },
             },
             {
               fixture: {
@@ -136,6 +137,7 @@ describe('fetchDailyFixtures', () => {
     expect(res.supportedFixtures.map((f) => f.fixture.id)).toEqual([
       1001, 1003,
     ]);
+    expect(res.supportedFixtures[0].goals).toEqual({ home: 2, away: 1 });
     expect(res.errors).toEqual([]);
   });
 

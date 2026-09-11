@@ -8,7 +8,7 @@
 
 - 📅 **Daily Fixture & Highlight Feed**: Browse daily fixtures by date with interactive previous/next navigation, quick "Today" jump, and a calendar date picker.
 - ⏱️ **Client-Local Kickoff & Day Bucketing**: Group matches and display kickoff times in the viewer's local timezone (12-hour AM/PM format), ensuring evening games appear on the day they were played locally.
-- 🏆 **14 Supported Competitions**: Premier League, UEFA Champions League, UEFA Europa League, La Liga, Serie A, Bundesliga, Ligue 1, Major League Soccer, Eredivisie, Liga Portugal, FA Cup, EFL Cup, Copa del Rey, and DFB-Pokal.
+- 🏆 **15 Supported Competitions**: Premier League, EFL Championship, UEFA Champions League, UEFA Europa League, UEFA Conference League, La Liga, Serie A, Bundesliga, Ligue 1, Major League Soccer, FA Cup, EFL Cup, Copa del Rey, DFB-Pokal, and Coppa Italia.
 - 🛡️ **Club Crests & League Branding**: High-resolution official logos and club crests with layout-shift-free containers and fallback avatar monograms.
 - 🎯 **Client-Side League Filtering**: Filter daily feeds by competition with dynamic match counts and quick toggle pills.
 - 🎬 **Inline Video Highlight Player**: Expand and play goal clips directly inside match cards in responsive 16:9 containers (supporting Dubz, Streamff, Caulse, Streamin, and resilient external fallbacks).
@@ -86,14 +86,47 @@ CRON_SECRET=dev_secret
 
 ### 3. Database Setup
 
-Apply local D1 migrations and seed initial data:
+You can populate your local Cloudflare D1 SQLite database using either real production data or synthetic seed data:
+
+#### Option A: Clone Real Data from Remote Production (Recommended)
+
+Mirror the real matches, scores, and video clips from your hosted remote D1 database into your local environment in a single step:
+
+```bash
+bun run db:pull-remote
+```
+
+This runs `wrangler d1 export` for matches and highlights, applies all local migrations, and imports the records into your local Miniflare SQLite database.
+
+#### Option B: Fresh Local Database & Seed Data
+
+Initialize clean tables and load mock matches and highlights:
 
 ```bash
 bun run db:migrate:local
 bun run db:seed
 ```
 
-### 4. Running Locally
+#### Database Mode (Local vs. Remote)
+
+In `wrangler.jsonc`:
+
+- **Local Mode (Default)**: Omit `"remote": true` inside the `d1_databases` block. The local dev server (`bun run dev`) and CLI scripts will connect to the local SQLite database at `.wrangler/state/v3/d1`.
+- **Remote Mode**: Add `"remote": true` inside `d1_databases` to proxy local requests directly to your hosted Cloudflare D1 database.
+
+### 4. Syncing Real Fixtures & Highlights Locally
+
+To test real match results and score updates locally without seed data:
+
+```bash
+# Sync official fixtures and final scores for a specific date (e.g., today or yesterday)
+bun run db:sync-fixtures 2026-09-10
+
+# Ingest latest goal highlights from Reddit r/soccer
+bun run db:ingest
+```
+
+### 5. Running Locally
 
 Start the Vite development server with Cloudflare Workers emulation:
 

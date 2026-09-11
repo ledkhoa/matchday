@@ -31,6 +31,11 @@ export const ApiSportsTeamDetailsSchema = z.object({
   winner: z.boolean().nullable().optional(),
 });
 
+export const ApiSportsGoalsDetailsSchema = z.object({
+  home: z.number().nullable().optional(),
+  away: z.number().nullable().optional(),
+});
+
 export const ApiSportsFixtureItemSchema = z.object({
   fixture: ApiSportsFixtureDetailsSchema,
   league: ApiSportsLeagueDetailsSchema,
@@ -38,6 +43,7 @@ export const ApiSportsFixtureItemSchema = z.object({
     home: ApiSportsTeamDetailsSchema,
     away: ApiSportsTeamDetailsSchema,
   }),
+  goals: ApiSportsGoalsDetailsSchema.optional(),
 });
 
 export const ApiSportsResponseSchema = z.object({
