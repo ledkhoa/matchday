@@ -312,7 +312,7 @@ describe('Epic 5 & 6 Edge Cases QA Suite', () => {
       }
     });
 
-    it('resolves streamff.com and caulse.com to responsive iframes', () => {
+    it('resolves streamff.com to direct video and caulse.com to responsive iframe', () => {
       const streamffHl = makeHighlight({
         sourceUrl: 'https://streamff.com/v/test123',
         embedUrl: null,
@@ -323,10 +323,10 @@ describe('Epic 5 & 6 Edge Cases QA Suite', () => {
           onClose: () => {},
         }),
       );
-      const iframe1 = c1.querySelector('iframe');
-      expect(iframe1).not.toBeNull();
-      expect(iframe1?.getAttribute('src')).toBe(
-        'https://streamff.com/e/test123',
+      const video1 = c1.querySelector('video');
+      expect(video1).not.toBeNull();
+      expect(video1?.getAttribute('src')).toBe(
+        'https://cdn.hostedhost.top/test123.mp4',
       );
       u1();
 

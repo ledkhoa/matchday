@@ -80,9 +80,9 @@ describe('HighlightPlayer component', () => {
     expect(iframe?.getAttribute('allow')).toContain('fullscreen');
   });
 
-  it('mounts HTML5 <video> for v.redd.it direct video links', () => {
+  it('mounts HTML5 <video> for streamff / streamin direct video links', () => {
     const highlight = createMockHighlight({
-      sourceUrl: 'https://v.redd.it/xyz789',
+      sourceUrl: 'https://streamff.pro/v/xyz789',
       embedUrl: null,
     });
     const { container } = render(
@@ -95,10 +95,30 @@ describe('HighlightPlayer component', () => {
     const video = container.querySelector('video');
     expect(video).not.toBeNull();
     expect(video?.getAttribute('src')).toBe(
-      'https://v.redd.it/xyz789/DASH_720.mp4',
+      'https://cdn.hostedhost.top/xyz789.mp4',
     );
     expect(video?.hasAttribute('controls')).toBe(true);
     expect(video?.hasAttribute('playsinline')).toBe(true);
+  });
+
+  it('mounts official Reddit iframe player for v.redd.it links with redditUrl', () => {
+    const highlight = createMockHighlight({
+      sourceUrl: 'https://v.redd.it/asset123',
+      redditUrl: '/r/soccer/comments/post456/goal_clip/',
+      embedUrl: null,
+    });
+    const { container } = render(
+      React.createElement(HighlightPlayer, {
+        highlight,
+        onClose: () => {},
+      }),
+    );
+
+    const iframe = container.querySelector('iframe');
+    expect(iframe).not.toBeNull();
+    expect(iframe?.getAttribute('src')).toBe(
+      'https://www.redditmedia.com/mediaembed/post456',
+    );
   });
 
   it('mounts Fallback UI with source link when host is unsupported', () => {

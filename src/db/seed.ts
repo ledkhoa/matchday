@@ -85,7 +85,7 @@ async function seed() {
         });
       }
 
-      const media = resolveVideoEmbed(post.url);
+      const media = resolveVideoEmbed(post.url, post.permalink);
       const highlightId = extractRedditId(post);
       const fingerprint = generateGoalFingerprint(
         matchId,

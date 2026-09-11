@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Play, X, VideoOff, ExternalLink, MessageSquare } from 'lucide-react';
 import type { Highlight } from '#/db/schema';
 import { resolveVideoEmbed } from '#/lib/video';
@@ -18,11 +18,19 @@ function getSourceHostname(url: string): string {
 }
 
 export function HighlightPlayer({ highlight, onClose }: HighlightPlayerProps) {
-  const media = resolveVideoEmbed(highlight.sourceUrl);
-  const effectiveEmbedUrl = media.embedUrl ?? highlight.embedUrl;
+  const media = resolveVideoEmbed(highlight.sourceUrl, highlight.redditUrl);
+  const [playbackError, setPlaybackError] = useState(false);
+
+  useEffect(() => {
+    setPlaybackError(false);
+  }, [highlight.id]);
+
   const isDirectVideo = Boolean(media.directVideoUrl && !media.isIframe);
+  const effectiveEmbedUrl = isDirectVideo
+    ? null
+    : (media.embedUrl ?? highlight.embedUrl);
   const hasEmbed = Boolean(effectiveEmbedUrl);
-  const isFallback = !isDirectVideo && !hasEmbed;
+  const isFallback = (!isDirectVideo && !hasEmbed) || playbackError;
 
   useEffect(() => {
     if (highlight.id) {
@@ -73,6 +81,7 @@ export function HighlightPlayer({ highlight, onClose }: HighlightPlayerProps) {
             preload="metadata"
             className="h-full w-full object-contain bg-black"
             aria-label={highlight.title}
+            onError={() => setPlaybackError(true)}
           />
         ) : hasEmbed ? (
           <iframe
@@ -83,6 +92,7 @@ export function HighlightPlayer({ highlight, onClose }: HighlightPlayerProps) {
             allowFullScreen
             loading="lazy"
             className="h-full w-full border-0 bg-black"
+            onError={() => setPlaybackError(true)}
           />
         ) : (
           /* Graceful Fallback for Unsupported Domains */

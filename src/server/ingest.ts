@@ -207,7 +207,7 @@ export async function ingestRedditHighlights(
       inBatchFingerprints.add(fingerprint);
     }
 
-    const media = resolveVideoEmbed(post.url);
+    const media = resolveVideoEmbed(post.url, post.permalink);
     touchedMatchIds.add(canonicalMatchId);
 
     const highlightRecord: schema.NewHighlight = {

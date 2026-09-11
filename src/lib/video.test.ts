@@ -22,33 +22,49 @@ describe('resolveVideoEmbed', () => {
     });
   });
 
-  it('resolves streamin.one clip to iframe embed', () => {
+  it('resolves streamin.one and streamin.link clips to direct video mp4', () => {
     const result = resolveVideoEmbed('https://streamin.one/v/stm456');
     expect(result).toEqual({
-      embedUrl: 'https://streamin.one/e/stm456',
-      isIframe: true,
-      directVideoUrl: null,
+      embedUrl: 'https://c-cdn.streamin.top/uploads/stm456.mp4',
+      isIframe: false,
+      directVideoUrl: 'https://c-cdn.streamin.top/uploads/stm456.mp4',
       fallbackUrl: 'https://streamin.one/v/stm456',
+    });
+
+    const linkResult = resolveVideoEmbed('https://streamin.link/v/2d31f39b');
+    expect(linkResult).toEqual({
+      embedUrl: 'https://c-cdn.streamin.top/uploads/2d31f39b.mp4',
+      isIframe: false,
+      directVideoUrl: 'https://c-cdn.streamin.top/uploads/2d31f39b.mp4',
+      fallbackUrl: 'https://streamin.link/v/2d31f39b',
     });
   });
 
-  it('resolves streamin.me clip to streamin.one iframe embed', () => {
+  it('resolves streamin.me clip to direct video mp4', () => {
     const result = resolveVideoEmbed('https://streamin.me/e/stm789');
     expect(result).toEqual({
-      embedUrl: 'https://streamin.one/e/stm789',
-      isIframe: true,
-      directVideoUrl: null,
+      embedUrl: 'https://c-cdn.streamin.top/uploads/stm789.mp4',
+      isIframe: false,
+      directVideoUrl: 'https://c-cdn.streamin.top/uploads/stm789.mp4',
       fallbackUrl: 'https://streamin.me/e/stm789',
     });
   });
 
-  it('resolves streamff.com clip to iframe embed', () => {
+  it('resolves streamff.com and streamff.pro clips to direct video mp4', () => {
     const result = resolveVideoEmbed('https://streamff.com/v/sff123');
     expect(result).toEqual({
-      embedUrl: 'https://streamff.com/e/sff123',
-      isIframe: true,
-      directVideoUrl: null,
+      embedUrl: 'https://cdn.hostedhost.top/sff123.mp4',
+      isIframe: false,
+      directVideoUrl: 'https://cdn.hostedhost.top/sff123.mp4',
       fallbackUrl: 'https://streamff.com/v/sff123',
+    });
+
+    const proResult = resolveVideoEmbed('https://streamff.pro/v/87cb92e5');
+    expect(proResult).toEqual({
+      embedUrl: 'https://cdn.hostedhost.top/87cb92e5.mp4',
+      isIframe: false,
+      directVideoUrl: 'https://cdn.hostedhost.top/87cb92e5.mp4',
+      fallbackUrl: 'https://streamff.pro/v/87cb92e5',
     });
   });
 
@@ -59,6 +75,16 @@ describe('resolveVideoEmbed', () => {
       isIframe: true,
       directVideoUrl: null,
       fallbackUrl: 'https://caulse.com/v/cls456',
+    });
+  });
+
+  it('resolves clipse.cloud clip to iframe embed', () => {
+    const result = resolveVideoEmbed('https://clipse.cloud/v/b60a279f');
+    expect(result).toEqual({
+      embedUrl: 'https://clipse.cloud/v/b60a279f',
+      isIframe: true,
+      directVideoUrl: null,
+      fallbackUrl: 'https://clipse.cloud/v/b60a279f',
     });
   });
 
@@ -84,12 +110,38 @@ describe('resolveVideoEmbed', () => {
     });
   });
 
-  it('resolves v.redd.it clip to direct video player format', () => {
+  it('resolves v.redd.it clip to reddit media embed when reddit permalink is provided', () => {
+    const result = resolveVideoEmbed(
+      'https://v.redd.it/20tv4kea1joh1',
+      '/r/soccer/comments/1wbrlde/france_22_ecuador_aude_bizet_48_fifa_u20_womens/',
+    );
+    expect(result).toEqual({
+      embedUrl: 'https://www.redditmedia.com/mediaembed/1wbrlde',
+      isIframe: true,
+      directVideoUrl: null,
+      fallbackUrl: 'https://v.redd.it/20tv4kea1joh1',
+    });
+  });
+
+  it('resolves direct reddit comments URL to mediaembed player', () => {
+    const result = resolveVideoEmbed(
+      'https://www.reddit.com/r/soccer/comments/1wbrlde/france_22_ecuador/',
+    );
+    expect(result).toEqual({
+      embedUrl: 'https://www.redditmedia.com/mediaembed/1wbrlde',
+      isIframe: true,
+      directVideoUrl: null,
+      fallbackUrl:
+        'https://www.reddit.com/r/soccer/comments/1wbrlde/france_22_ecuador/',
+    });
+  });
+
+  it('falls back cleanly for v.redd.it clip without reddit post context', () => {
     const result = resolveVideoEmbed('https://v.redd.it/rdt123');
     expect(result).toEqual({
-      embedUrl: 'https://v.redd.it/rdt123/DASH_720.mp4',
+      embedUrl: null,
       isIframe: false,
-      directVideoUrl: 'https://v.redd.it/rdt123/DASH_720.mp4',
+      directVideoUrl: null,
       fallbackUrl: 'https://v.redd.it/rdt123',
     });
   });
@@ -127,20 +179,25 @@ describe('resolveVideoEmbed', () => {
     });
 
     const result2 = resolveVideoEmbed(
-      'https://v.redd.it/rdt123?source=fallback#t=10',
+      'https://streamff.pro/v/rdt123?source=fallback#t=10',
     );
     expect(result2).toEqual({
-      embedUrl: 'https://v.redd.it/rdt123/DASH_720.mp4',
+      embedUrl: 'https://cdn.hostedhost.top/rdt123.mp4',
       isIframe: false,
-      directVideoUrl: 'https://v.redd.it/rdt123/DASH_720.mp4',
-      fallbackUrl: 'https://v.redd.it/rdt123?source=fallback#t=10',
+      directVideoUrl: 'https://cdn.hostedhost.top/rdt123.mp4',
+      fallbackUrl: 'https://streamff.pro/v/rdt123?source=fallback#t=10',
     });
   });
 
   it('handles case-insensitive domains', () => {
     const result = resolveVideoEmbed('HTTPS://WWW.STREAMIN.ONE/V/CAPS123');
-    expect(result.embedUrl).toBe('https://streamin.one/e/CAPS123');
-    expect(result.isIframe).toBe(true);
+    expect(result.embedUrl).toBe(
+      'https://c-cdn.streamin.top/uploads/CAPS123.mp4',
+    );
+    expect(result.isIframe).toBe(false);
+    expect(result.directVideoUrl).toBe(
+      'https://c-cdn.streamin.top/uploads/CAPS123.mp4',
+    );
   });
 
   it('falls back cleanly when domain matches but ID is missing', () => {
