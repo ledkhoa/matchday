@@ -55,6 +55,11 @@ export async function handleScheduled(
           console.log(
             `[CRON] Fixture sync completed in ${Date.now() - startTime}ms: found=${result.supportedFound}, persisted=${result.persistedCount}`,
           );
+          if (result.errors.length > 0) {
+            console.error(
+              `[CRON] Fixture sync reported errors: ${JSON.stringify(result.errors)}`,
+            );
+          }
         } else {
           // Default / 5-minute trigger ("*/5 * * * *"): Ingest Reddit highlights
           console.log('[CRON] Dispatching 5-minute Reddit highlight ingestion');

@@ -9,6 +9,7 @@ export interface SupportedLeague {
  */
 export const SUPPORTED_LEAGUES_LIST: readonly SupportedLeague[] = [
   { id: 39, name: 'Premier League', country: 'England' },
+  { id: 40, name: 'Championship', country: 'England' },
   { id: 45, name: 'FA Cup', country: 'England' },
   { id: 48, name: 'EFL Cup', country: 'England' },
   { id: 2, name: 'UEFA Champions League', country: 'Europe' },
@@ -28,11 +29,15 @@ export const SUPPORTED_LEAGUE_NAMES: readonly string[] =
   SUPPORTED_LEAGUES_LIST.map((l) => l.name);
 
 /**
- * Checks if a competition name is one of our 14 officially supported competitions.
+ * Checks if a competition name is one of our officially supported competitions.
  */
 export function isSupportedLeague(
   name: string | null | undefined,
 ): name is string {
   if (!name) return false;
-  return SUPPORTED_LEAGUE_NAMES.includes(name);
+  return (
+    SUPPORTED_LEAGUE_NAMES.includes(name) ||
+    name === 'EFL Championship' ||
+    name === 'Championship'
+  );
 }

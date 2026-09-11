@@ -134,7 +134,14 @@ export function DateRouteComponent() {
   // Filter matches by selected league
   const filteredMatches = useMemo(() => {
     if (!activeLeague) return data.matches;
-    return data.matches.filter((m) => m.competition === activeLeague);
+    return data.matches.filter(
+      (m) =>
+        m.competition === activeLeague ||
+        (activeLeague === 'EFL Championship' &&
+          m.competition === 'Championship') ||
+        (activeLeague === 'Championship' &&
+          m.competition === 'EFL Championship'),
+    );
   }, [data.matches, activeLeague]);
 
   // Reset active highlight whenever date parameter changes

@@ -116,7 +116,7 @@ export function DateNav({ currentDate }: DateNavProps) {
                 const month = String(date.getMonth() + 1).padStart(2, '0');
                 const day = String(date.getDate()).padStart(2, '0');
                 const iso = `${year}-${month}-${day}`;
-                return iso > todayLocal || iso < '2020-01-01';
+                return iso > todayLocal || iso < '2026-09-10';
               }}
             />
           </PopoverContent>

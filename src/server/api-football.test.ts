@@ -24,12 +24,13 @@ describe('fetchDailyFixtures', () => {
     globalThis.fetch = originalFetch;
   });
 
-  it('correctly tracks exactly 14 supported leagues', () => {
-    expect(SUPPORTED_LEAGUES.size).toBe(14);
-    expect(SUPPORTED_LEAGUE_IDS.size).toBe(14);
+  it('correctly tracks exactly 15 supported leagues', () => {
+    expect(SUPPORTED_LEAGUES.size).toBe(15);
+    expect(SUPPORTED_LEAGUE_IDS.size).toBe(15);
 
     // Verify key leagues are tracked
     expect(SUPPORTED_LEAGUES.get(39)).toBe('Premier League');
+    expect(SUPPORTED_LEAGUES.get(40)).toBe('Championship');
     expect(SUPPORTED_LEAGUES.get(2)).toBe('UEFA Champions League');
     expect(SUPPORTED_LEAGUES.get(140)).toBe('La Liga');
     expect(SUPPORTED_LEAGUES.get(78)).toBe('Bundesliga');

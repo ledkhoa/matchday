@@ -37,7 +37,7 @@ export function TeamCrest({ teamName, logoUrl, className }: TeamCrestProps) {
   return (
     <div
       className={cn(
-        'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-zinc-800/80 bg-zinc-950/60 p-1 shadow-inner transition-colors hover:border-zinc-700 sm:h-9 sm:w-9',
+        'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-zinc-700/60 bg-white/95 p-1 shadow-sm transition-colors hover:border-zinc-500 sm:h-9 sm:w-9',
         className,
       )}
     >

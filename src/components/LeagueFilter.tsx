@@ -91,12 +91,14 @@ export function LeagueFilter({
             )}
           >
             {league.logo ? (
-              <img
-                src={league.logo}
-                alt=""
-                aria-hidden="true"
-                className="h-4 w-4 shrink-0 object-contain"
-              />
+              <div className="flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded bg-white p-0.5 shadow-xs">
+                <img
+                  src={league.logo}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-full w-full object-contain"
+                />
+              </div>
             ) : (
               <Trophy className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
             )}
@@ -135,7 +137,7 @@ export function LeagueFilter({
         </button>
       )}
 
-      {/* "All 14 Leagues" Dropdown / Popover */}
+      {/* "All Supported Leagues" Dropdown / Popover */}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button

@@ -42,12 +42,14 @@ export const ApiSportsFixtureItemSchema = z.object({
 
 export const ApiSportsResponseSchema = z.object({
   get: z.string().optional(),
-  parameters: z.record(z.string(), z.string()).optional(),
+  parameters: z
+    .union([z.record(z.string(), z.string()), z.array(z.unknown())])
+    .optional(),
   errors: z
     .union([z.array(z.string()), z.record(z.string(), z.string())])
     .optional(),
-  results: z.number(),
-  response: z.array(ApiSportsFixtureItemSchema),
+  results: z.number().optional().default(0),
+  response: z.array(ApiSportsFixtureItemSchema).optional().default([]),
 });
 
 export type ApiSportsFixtureItem = z.infer<typeof ApiSportsFixtureItemSchema>;
@@ -55,6 +57,7 @@ export type ApiSportsResponse = z.infer<typeof ApiSportsResponseSchema>;
 
 export const SUPPORTED_LEAGUES: ReadonlyMap<number, string> = new Map([
   [39, 'Premier League'],
+  [40, 'Championship'],
   [45, 'FA Cup'],
   [48, 'EFL Cup'],
   [2, 'UEFA Champions League'],
@@ -84,7 +87,7 @@ export const API_SPORTS_BASE_URL = 'https://v3.football.api-sports.io';
 
 /**
  * Fetches official daily fixtures from API-Sports v3 for a given UTC calendar date.
- * Validates the response via Zod v4 and filters for the 14 supported competitions.
+ * Validates the response via Zod v4 and filters for the supported competitions.
  */
 export async function fetchDailyFixtures(
   apiKey: string,

@@ -60,13 +60,15 @@ export function MatchHeader({
       {/* Left: Competition Branding */}
       <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
         {cleanLogo && (
-          <img
-            src={cleanLogo}
-            alt=""
-            aria-hidden="true"
-            loading="lazy"
-            className="h-4 w-4 shrink-0 object-contain sm:h-4.5 sm:w-4.5"
-          />
+          <div className="flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded bg-white p-0.5 shadow-xs sm:h-5 sm:w-5">
+            <img
+              src={cleanLogo}
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              className="h-full w-full object-contain"
+            />
+          </div>
         )}
         {cleanCompetition && (
           <span className="truncate max-w-[180px] sm:max-w-[300px] text-xs font-semibold text-zinc-400 tracking-wide">

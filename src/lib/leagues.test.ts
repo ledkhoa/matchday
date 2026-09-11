@@ -6,13 +6,14 @@ import {
 } from './leagues';
 
 describe('leagues utility', () => {
-  it('contains exactly 14 supported leagues', () => {
-    expect(SUPPORTED_LEAGUES_LIST.length).toBe(14);
-    expect(SUPPORTED_LEAGUE_NAMES.length).toBe(14);
+  it('contains exactly 15 supported leagues', () => {
+    expect(SUPPORTED_LEAGUES_LIST.length).toBe(15);
+    expect(SUPPORTED_LEAGUE_NAMES.length).toBe(15);
   });
 
   it('includes key premier competitions', () => {
     expect(SUPPORTED_LEAGUE_NAMES).toContain('Premier League');
+    expect(SUPPORTED_LEAGUE_NAMES).toContain('Championship');
     expect(SUPPORTED_LEAGUE_NAMES).toContain('UEFA Champions League');
     expect(SUPPORTED_LEAGUE_NAMES).toContain('La Liga');
     expect(SUPPORTED_LEAGUE_NAMES).toContain('Bundesliga');
@@ -23,6 +24,8 @@ describe('leagues utility', () => {
 
   it('isSupportedLeague returns true for tracked leagues', () => {
     expect(isSupportedLeague('Premier League')).toBe(true);
+    expect(isSupportedLeague('Championship')).toBe(true);
+    expect(isSupportedLeague('EFL Championship')).toBe(true);
     expect(isSupportedLeague('Major League Soccer')).toBe(true);
   });
 

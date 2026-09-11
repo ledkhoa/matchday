@@ -141,7 +141,9 @@ export function HighlightPlayer({ highlight, onClose }: HighlightPlayerProps) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-zinc-400 transition-colors hover:text-zinc-200"
           >
-            <span className='text-primary'>Source: {getSourceHostname(highlight.sourceUrl)}</span>
+            <span className="text-primary">
+              Source: {getSourceHostname(highlight.sourceUrl)}
+            </span>
             <ExternalLink className="h-3 w-3" />
           </a>
         </div>
