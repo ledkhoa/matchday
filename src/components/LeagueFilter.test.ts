@@ -132,7 +132,7 @@ describe('LeagueFilter', () => {
     expect(onSelect).toHaveBeenCalledWith(undefined);
   });
 
-  it('opens popover with all 14 supported leagues and allows selection', () => {
+  it('opens popover with all 15 supported leagues and allows selection', () => {
     const onSelect = mock();
     const { getByLabelText, getByText } = render(
       React.createElement(LeagueFilter, {
@@ -143,10 +143,12 @@ describe('LeagueFilter', () => {
     );
 
     const trigger = getByLabelText('View all supported competitions');
+    expect(getByText('All Competitions')).toBeDefined();
     fireEvent.click(trigger);
 
     expect(getByText('Supported Competitions')).toBeDefined();
     expect(getByText('Premier League')).toBeDefined();
+    expect(getByText('Championship')).toBeDefined();
     expect(getByText('Bundesliga')).toBeDefined();
     expect(getByText('La Liga')).toBeDefined();
     expect(getByText('Serie A')).toBeDefined();
