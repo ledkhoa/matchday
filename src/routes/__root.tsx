@@ -6,7 +6,7 @@ import {
 } from '@tanstack/react-router';
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
 import { TanStackDevtools } from '@tanstack/react-devtools';
-import { CircleDot, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools';
 import { TooltipProvider } from '#/components/ui/tooltip';
@@ -34,6 +34,11 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       },
     ],
     links: [
+      {
+        rel: 'icon',
+        type: 'image/webp',
+        href: '/matchday.webp',
+      },
       {
         rel: 'stylesheet',
         href: appCss,
@@ -64,18 +69,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                   to="/"
                   className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
                 >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-950/70 border border-blue-800/60 text-yellow-400 shadow-[0_0_12px_rgba(255,209,0,0.25)]">
-                    <CircleDot className="h-5 w-5 animate-pulse" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-black tracking-tight text-zinc-100">
-                      MatchDay
-                    </span>
-                    <span className="flex items-center gap-1.5 rounded-full border border-blue-900/70 bg-blue-950/50 px-2 py-0.5 text-[11px] font-semibold text-yellow-400">
-                      <span className="h-1.5 w-1.5 rounded-full bg-yellow-400 animate-ping" />
-                      LIVE DIGEST
-                    </span>
-                  </div>
+                  <img
+                    src="/matchday.webp"
+                    alt="MatchDay"
+                    width={36}
+                    height={36}
+                    className="h-9 w-9 object-contain"
+                  />
+                  <span className="text-lg font-black tracking-tight text-zinc-100">
+                    MatchDay
+                  </span>
                 </Link>
 
                 {/* External Links */}
