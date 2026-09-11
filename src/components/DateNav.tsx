@@ -69,7 +69,7 @@ export function DateNav({ currentDate }: DateNavProps) {
   return (
     <nav
       aria-label="Date navigation"
-      className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-zinc-800 bg-zinc-900/60 p-2.5 backdrop-blur-sm sm:gap-4 sm:p-3"
+      className="relative flex flex-wrap items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 p-2.5 backdrop-blur-sm sm:gap-4 sm:p-3"
     >
       <div className="flex items-center gap-1.5 sm:gap-2">
         <Button
@@ -144,7 +144,7 @@ export function DateNav({ currentDate }: DateNavProps) {
           variant="outline"
           size="sm"
           onClick={handleTodayClick}
-          className="h-9 border-yellow-500/40 bg-yellow-500/10 px-3 text-xs font-semibold text-yellow-300 hover:border-yellow-400/60 hover:bg-yellow-500/20 hover:text-yellow-200"
+          className="h-9 border-yellow-500/40 bg-yellow-500/10 px-3 text-xs font-semibold text-yellow-300 hover:border-yellow-400/60 hover:bg-yellow-500/20 hover:text-yellow-200 sm:absolute sm:right-3"
         >
           Today
         </Button>

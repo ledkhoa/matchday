@@ -131,7 +131,7 @@ export function LeagueFilter({
         <div
           ref={scrollContainerRef}
           className={cn(
-            'flex items-center gap-2 overflow-x-auto py-1 scrollbar-none',
+            'flex items-center gap-2 overflow-x-auto py-1.5 px-1.5 scrollbar-none',
             canScrollLeft && canScrollRight && 'mask-edges-both',
             canScrollLeft && !canScrollRight && 'mask-edges-left',
             !canScrollLeft && canScrollRight && 'mask-edges-right',
@@ -281,11 +281,14 @@ export function LeagueFilter({
             sideOffset={8}
             className="w-72 max-h-80 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950 p-2 text-zinc-100 shadow-2xl"
           >
-            <div className="px-2 py-1.5 text-xs font-bold uppercase tracking-wider text-zinc-400 border-b border-zinc-800/80 mb-1 flex items-center justify-between">
+            <div className="px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider text-zinc-400 border-b border-zinc-800/80 mb-1 flex items-center justify-between">
               <span>Supported Competitions</span>
-              <span className="text-[10px] text-zinc-500 font-normal">
-                ({SUPPORTED_LEAGUES_LIST.length})
-              </span>
+              <div className="flex items-center gap-1.5 shrink-0 pl-2">
+                <span className="flex h-4.5 min-w-[20px] items-center justify-center text-[10px] text-zinc-500 font-normal tabular-nums">
+                  ({SUPPORTED_LEAGUES_LIST.length})
+                </span>
+                <span className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              </div>
             </div>
             <div className="space-y-0.5">
               {SUPPORTED_LEAGUES_LIST.map((league) => {
