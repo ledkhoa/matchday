@@ -200,4 +200,59 @@ describe('MatchHeader component', () => {
       expect(getByTestId('watch-badge-unwatched')).toBeDefined();
     });
   });
+
+  describe('Match status vs kickoff precedence', () => {
+    it('renders Full Time badge with emerald indicator when status is FT', () => {
+      const { getByTestId, getByText, queryByTestId } = render(
+        React.createElement(MatchHeader, {
+          competition: 'Premier League',
+          status: 'FT',
+          kickoffTime: Date.UTC(2026, 8, 10, 19, 0),
+        }),
+      );
+
+      const ftBadge = getByTestId('match-status-full-time');
+      expect(ftBadge).toBeDefined();
+      expect(getByText('Full Time')).toBeDefined();
+      expect(queryByTestId('match-kickoff-time')).toBeNull();
+    });
+
+    it('renders Full Time (ET) badge when status is AET', () => {
+      const { getByTestId, getByText } = render(
+        React.createElement(MatchHeader, {
+          competition: 'UEFA Champions League',
+          status: 'AET',
+        }),
+      );
+
+      expect(getByTestId('match-status-full-time')).toBeDefined();
+      expect(getByText('Full Time (ET)')).toBeDefined();
+    });
+
+    it('renders Full Time (PEN) badge when status is PEN', () => {
+      const { getByTestId, getByText } = render(
+        React.createElement(MatchHeader, {
+          competition: 'FA Cup',
+          status: 'PEN',
+        }),
+      );
+
+      expect(getByTestId('match-status-full-time')).toBeDefined();
+      expect(getByText('Full Time (PEN)')).toBeDefined();
+    });
+
+    it('renders Kickoff badge when status is not full-time (e.g. NS)', () => {
+      const { getByTestId, getByText, queryByTestId } = render(
+        React.createElement(MatchHeader, {
+          competition: 'La Liga',
+          status: 'NS',
+          kickoffTime: Date.UTC(2026, 8, 10, 19, 0),
+        }),
+      );
+
+      expect(queryByTestId('match-status-full-time')).toBeNull();
+      expect(getByTestId('match-kickoff-time')).toBeDefined();
+      expect(getByText(/Kickoff: \d{1,2}:\d{2} [AP]M/)).toBeDefined();
+    });
+  });
 });

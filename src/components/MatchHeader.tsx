@@ -8,6 +8,7 @@ export interface MatchHeaderProps {
   competition?: string | null;
   leagueLogo?: string | null;
   kickoffTime?: number | null;
+  status?: string | null;
   timeZone?: string;
   className?: string;
   /** Aggregate watch status for the match */
@@ -18,6 +19,7 @@ export function MatchHeader({
   competition,
   leagueLogo,
   kickoffTime,
+  status,
   timeZone,
   className,
   watchStatus,
@@ -41,12 +43,23 @@ export function MatchHeader({
     }
   }, [timeZone, activeTz]);
 
+  const cleanStatus = status?.trim().toUpperCase();
+  const isFullTime =
+    cleanStatus === 'FT' || cleanStatus === 'AET' || cleanStatus === 'PEN';
+  const fullTimeLabel =
+    cleanStatus === 'AET'
+      ? 'Full Time (ET)'
+      : cleanStatus === 'PEN'
+        ? 'Full Time (PEN)'
+        : 'Full Time';
+
   const formattedKickoff = formatKickoffTime(kickoffTime, activeTz);
   const hasKickoff = Boolean(formattedKickoff);
+  const hasTimeOrStatus = isFullTime || hasKickoff;
   const hasWatchBadge = Boolean(watchStatus && watchStatus.total > 0);
 
   // Collapse cleanly with zero margin or padding jitter when metadata and watch status are absent
-  if (!hasCompetition && !hasKickoff && !hasWatchBadge) {
+  if (!hasCompetition && !hasTimeOrStatus && !hasWatchBadge) {
     return null;
   }
 
@@ -77,18 +90,33 @@ export function MatchHeader({
         )}
       </div>
 
-      {/* Right: Kickoff Time Badge & Watch Status Badge */}
-      {(hasKickoff || hasWatchBadge) && (
+      {/* Right: Kickoff Time Badge / Full Time Badge & Watch Status Badge */}
+      {(hasTimeOrStatus || hasWatchBadge) && (
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {hasKickoff && (
+          {isFullTime ? (
+            <span
+              data-testid="match-status-full-time"
+              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700/80 bg-zinc-800/90 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-zinc-200 shadow-xs sm:text-xs"
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0"
+                aria-hidden="true"
+              />
+              {fullTimeLabel}
+            </span>
+          ) : hasKickoff ? (
             <span
               suppressHydrationWarning
-              className="inline-flex items-center gap-1 rounded-full border border-zinc-800/80 bg-zinc-950/60 px-2 py-0.5 font-mono text-[10px] font-medium text-zinc-400 sm:text-xs"
+              data-testid="match-kickoff-time"
+              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700/80 bg-zinc-800/90 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-zinc-200 shadow-xs sm:text-xs"
             >
-              <Clock className="h-3 w-3 text-zinc-500" aria-hidden="true" />
+              <Clock
+                className="h-3 w-3 text-zinc-400 shrink-0"
+                aria-hidden="true"
+              />
               Kickoff: {formattedKickoff}
             </span>
-          )}
+          ) : null}
           {hasWatchBadge &&
             watchStatus &&
             (watchStatus.hasUnwatched ? (

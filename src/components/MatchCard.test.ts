@@ -339,6 +339,28 @@ describe('MatchCard component', () => {
       expect(article?.firstElementChild?.textContent).toContain('Arsenal');
     });
 
+    it('renders Full Time badge in header when match status is FT', () => {
+      const finishedMatch: MatchWithHighlights = {
+        ...makeTestMatch(),
+        competition: 'Premier League',
+        status: 'FT',
+        kickoffTime: Date.UTC(2026, 8, 10, 19, 0),
+      };
+
+      const { getByTestId, getByText, queryByTestId } = render(
+        React.createElement(MatchCard, {
+          match: finishedMatch,
+          activeHighlightId: null,
+          onSelectHighlight: () => {},
+          onCloseHighlight: () => {},
+        }),
+      );
+
+      expect(getByTestId('match-status-full-time')).toBeDefined();
+      expect(getByText('Full Time')).toBeDefined();
+      expect(queryByTestId('match-kickoff-time')).toBeNull();
+    });
+
     it('renders competition only without kickoff badge when kickoffTime is absent', () => {
       const compOnlyMatch: MatchWithHighlights = {
         ...makeTestMatch(),

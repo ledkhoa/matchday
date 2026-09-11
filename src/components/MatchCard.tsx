@@ -165,6 +165,7 @@ export function MatchCard({
         competition={match.competition}
         leagueLogo={match.leagueLogo}
         kickoffTime={match.kickoffTime}
+        status={match.status}
         timeZone={timeZone}
         watchStatus={watchStatus}
       />
