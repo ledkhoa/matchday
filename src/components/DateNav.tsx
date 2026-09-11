@@ -91,7 +91,7 @@ export function DateNav({ currentDate }: DateNavProps) {
               className="h-9 border-zinc-800 bg-zinc-900/80 px-2.5 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100 sm:px-3.5"
               aria-label="Select date from calendar"
             >
-              <CalendarIcon className="h-4 w-4 text-emerald-400" />
+              <CalendarIcon className="h-4 w-4 text-yellow-400" />
               <span className="hidden sm:inline font-medium">
                 {formatDisplayDate(currentDate)}
               </span>
@@ -144,7 +144,7 @@ export function DateNav({ currentDate }: DateNavProps) {
           variant="outline"
           size="sm"
           onClick={handleTodayClick}
-          className="h-9 border-emerald-600/50 bg-emerald-950/30 px-3 text-xs font-semibold text-emerald-300 hover:bg-emerald-900/40 hover:text-emerald-200"
+          className="h-9 border-yellow-500/40 bg-yellow-500/10 px-3 text-xs font-semibold text-yellow-300 hover:border-yellow-400/60 hover:bg-yellow-500/20 hover:text-yellow-200"
         >
           Today
         </Button>

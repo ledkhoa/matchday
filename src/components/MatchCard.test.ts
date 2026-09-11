@@ -374,7 +374,7 @@ describe('MatchCard component', () => {
       );
 
       const article = container.querySelector('article');
-      expect(article?.className).toContain('border-emerald-500/30');
+      expect(article?.className).toContain('border-yellow-500/30');
       expect(article?.className).toContain('bg-zinc-900/85');
     });
 
@@ -417,7 +417,7 @@ describe('MatchCard component', () => {
       const article = container.querySelector('article');
       expect(article?.className).toContain('border-zinc-800');
       expect(article?.className).toContain('bg-zinc-900/80');
-      expect(article?.className).not.toContain('border-emerald-500/30');
+      expect(article?.className).not.toContain('border-yellow-500/30');
     });
 
     it('renders GoalChip in unwatched, active, and watched states with correct accessibility labels', () => {
@@ -449,8 +449,8 @@ describe('MatchCard component', () => {
         name: /Currently playing goal: Mitoma 38'/i,
       });
       expect(activeBtn.getAttribute('aria-pressed')).toBe('true');
-      expect(activeBtn.className).toContain('border-emerald-500');
-      expect(activeBtn.className).toContain('bg-emerald-950/60');
+      expect(activeBtn.className).toContain('border-yellow-500');
+      expect(activeBtn.className).toContain('bg-blue-950/70');
 
       // Watched chip
       const watchedBtn = getByRole('button', { name: /Havertz.*Watched/i });

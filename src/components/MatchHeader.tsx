@@ -92,9 +92,9 @@ export function MatchHeader({
             (watchStatus.hasUnwatched ? (
               <span
                 data-testid="watch-badge-unwatched"
-                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/30 px-2 py-0.5 font-mono text-[10px] sm:text-xs text-emerald-300"
+                className="inline-flex items-center gap-1.5 rounded-full border border-yellow-500/30 bg-yellow-950/30 px-2 py-0.5 font-mono text-[10px] sm:text-xs text-yellow-300"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse motion-reduce:animate-none" />
+                <span className="h-1.5 w-1.5 rounded-full bg-yellow-400 animate-pulse motion-reduce:animate-none" />
                 {watchStatus.watchedCount}/{watchStatus.total} watched
               </span>
             ) : watchStatus.isAllWatched ? (
@@ -103,7 +103,7 @@ export function MatchHeader({
                 className="inline-flex items-center gap-1 rounded-full border border-zinc-800 bg-zinc-950/80 px-2 py-0.5 font-mono text-[10px] sm:text-xs text-zinc-400"
               >
                 <Check
-                  className="h-3 w-3 text-emerald-400/90"
+                  className="h-3 w-3 text-blue-400/90"
                   aria-hidden="true"
                 />
                 {watchStatus.total}/{watchStatus.total} watched

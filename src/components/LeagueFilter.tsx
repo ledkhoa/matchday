@@ -54,9 +54,9 @@ export function LeagueFilter({
         aria-pressed={isAllActive}
         onClick={() => onSelectLeague(undefined)}
         className={cn(
-          'flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
+          'flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500',
           isAllActive
-            ? 'border border-emerald-500 bg-emerald-950/60 text-emerald-200 ring-1 ring-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+            ? 'border border-yellow-500 bg-blue-950/70 text-yellow-200 ring-1 ring-yellow-500 shadow-[0_0_12px_rgba(255,209,0,0.2)]'
             : 'border border-zinc-800 bg-zinc-900/80 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
         )}
       >
@@ -65,7 +65,7 @@ export function LeagueFilter({
           className={cn(
             'flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums',
             isAllActive
-              ? 'bg-emerald-500/20 text-emerald-300'
+              ? 'bg-yellow-500/20 text-yellow-300'
               : 'bg-zinc-800 text-zinc-400',
           )}
         >
@@ -84,9 +84,9 @@ export function LeagueFilter({
             aria-pressed={isSelected}
             onClick={() => onSelectLeague(isSelected ? undefined : league.name)}
             className={cn(
-              'flex shrink-0 items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
+              'flex shrink-0 items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500',
               isSelected
-                ? 'border border-emerald-500 bg-emerald-950/60 text-emerald-200 ring-1 ring-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                ? 'border border-yellow-500 bg-blue-950/70 text-yellow-200 ring-1 ring-yellow-500 shadow-[0_0_12px_rgba(255,209,0,0.2)]'
                 : 'border border-zinc-800 bg-zinc-900/80 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
             )}
           >
@@ -107,7 +107,7 @@ export function LeagueFilter({
               className={cn(
                 'flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums',
                 isSelected
-                  ? 'bg-emerald-500/20 text-emerald-300'
+                  ? 'bg-yellow-500/20 text-yellow-300'
                   : 'bg-zinc-800 text-zinc-400',
               )}
             >
@@ -124,14 +124,14 @@ export function LeagueFilter({
           role="button"
           aria-pressed={true}
           onClick={() => onSelectLeague(undefined)}
-          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-500 bg-emerald-950/60 px-3 py-1.5 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-yellow-500 bg-blue-950/70 px-3 py-1.5 text-xs font-semibold text-yellow-200 ring-1 ring-yellow-500 shadow-[0_0_12px_rgba(255,209,0,0.2)]"
         >
-          <Trophy className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+          <Trophy className="h-3.5 w-3.5 shrink-0 text-yellow-400" />
           <span className="truncate max-w-[140px]">{activeLeague}</span>
-          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500/20 px-1 text-[10px] font-bold text-emerald-300 tabular-nums">
+          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-yellow-500/20 px-1 text-[10px] font-bold text-yellow-300 tabular-nums">
             0
           </span>
-          <X className="h-3.5 w-3.5 ml-0.5 text-emerald-400 hover:text-emerald-200" />
+          <X className="h-3.5 w-3.5 ml-0.5 text-yellow-400 hover:text-yellow-200" />
         </button>
       )}
 
@@ -142,7 +142,7 @@ export function LeagueFilter({
             type="button"
             aria-label="View all supported competitions"
             className={cn(
-              'flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
+              'flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500',
               open
                 ? 'border-zinc-700 bg-zinc-800 text-zinc-200'
                 : 'border-zinc-800/80 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
@@ -178,7 +178,7 @@ export function LeagueFilter({
                   className={cn(
                     'flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors text-left',
                     isSelected
-                      ? 'bg-emerald-950/60 text-emerald-200 font-semibold'
+                      ? 'bg-blue-950/70 text-yellow-200 font-semibold'
                       : 'text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100',
                   )}
                 >
@@ -193,7 +193,7 @@ export function LeagueFilter({
                       className={cn(
                         'flex h-4.5 min-w-[20px] items-center justify-center rounded-md px-1 text-[10px] tabular-nums',
                         matchCount > 0
-                          ? 'bg-emerald-500/20 font-bold text-emerald-400'
+                          ? 'bg-yellow-500/20 font-bold text-yellow-400'
                           : 'font-medium text-zinc-600',
                       )}
                     >
@@ -201,7 +201,7 @@ export function LeagueFilter({
                     </span>
                     <span className="flex h-3.5 w-3.5 items-center justify-center shrink-0">
                       {isSelected && (
-                        <Check className="h-3.5 w-3.5 text-emerald-400" />
+                        <Check className="h-3.5 w-3.5 text-yellow-400" />
                       )}
                     </span>
                   </div>

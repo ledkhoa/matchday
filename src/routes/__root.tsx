@@ -54,7 +54,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           }}
         />
       </head>
-      <body className="min-h-screen bg-zinc-950 text-zinc-100 selection:bg-emerald-500/30 selection:text-emerald-200 antialiased font-sans">
+      <body className="min-h-screen bg-zinc-950 text-zinc-100 selection:bg-yellow-400/30 selection:text-yellow-200 antialiased font-sans">
         <TooltipProvider>
           <div className="flex min-h-screen flex-col">
             <header className="sticky top-0 z-40 w-full border-b border-zinc-800/80 bg-zinc-950/85 backdrop-blur-md">
@@ -64,15 +64,15 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                   to="/"
                   className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
                 >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-950/60 border border-emerald-800/50 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.25)]">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-950/70 border border-blue-800/60 text-yellow-400 shadow-[0_0_12px_rgba(255,209,0,0.25)]">
                     <CircleDot className="h-5 w-5 animate-pulse" />
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-black tracking-tight text-zinc-100">
                       MatchDay
                     </span>
-                    <span className="flex items-center gap-1.5 rounded-full border border-emerald-900/60 bg-emerald-950/40 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span className="flex items-center gap-1.5 rounded-full border border-blue-900/70 bg-blue-950/50 px-2 py-0.5 text-[11px] font-semibold text-yellow-400">
+                      <span className="h-1.5 w-1.5 rounded-full bg-yellow-400 animate-ping" />
                       LIVE DIGEST
                     </span>
                   </div>

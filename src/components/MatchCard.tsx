@@ -56,21 +56,21 @@ function GoalChip({
       aria-label={ariaLabel}
       onClick={() => (isActive ? onClose() : onSelect())}
       className={cn(
-        'group flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
+        'group flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500',
         isActive
-          ? 'border border-emerald-500 bg-emerald-950/60 text-emerald-100 ring-1 ring-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+          ? 'border border-yellow-500 bg-blue-950/70 text-yellow-100 ring-1 ring-yellow-500 shadow-[0_0_12px_rgba(255,209,0,0.25)]'
           : isWatched
             ? 'border border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-900/80 hover:text-zinc-200'
-            : 'border border-zinc-700/80 bg-zinc-900/90 text-zinc-200 hover:border-emerald-500/60 hover:bg-zinc-800 hover:text-white shadow-sm',
+            : 'border border-zinc-700/80 bg-zinc-900/90 text-zinc-200 hover:border-yellow-500/60 hover:bg-zinc-800 hover:text-white shadow-sm',
       )}
     >
       {/* Icon: Active/Unwatched use Play, Watched uses Check */}
       {isActive ? (
-        <Play className="h-3 w-3 shrink-0 fill-emerald-400 text-emerald-400" />
+        <Play className="h-3 w-3 shrink-0 fill-yellow-400 text-yellow-400" />
       ) : isWatched ? (
-        <Check className="h-3 w-3 shrink-0 text-emerald-500/70 group-hover:text-emerald-400 transition-colors" />
+        <Check className="h-3 w-3 shrink-0 text-blue-400/80 group-hover:text-blue-300 transition-colors" />
       ) : (
-        <Play className="h-3 w-3 shrink-0 text-emerald-400 transition-transform group-hover:scale-110" />
+        <Play className="h-3 w-3 shrink-0 text-yellow-400 transition-transform group-hover:scale-110" />
       )}
 
       {/* Scorer & Minute */}
@@ -78,7 +78,7 @@ function GoalChip({
         className={cn(
           'font-semibold',
           isActive
-            ? 'text-emerald-100'
+            ? 'text-yellow-100'
             : isWatched
               ? 'text-zinc-400 group-hover:text-zinc-200 font-medium'
               : 'text-zinc-200 group-hover:text-zinc-100',
@@ -150,7 +150,7 @@ export function MatchCard({
 
   const containerStateClasses =
     watchStatus.total > 0 && watchStatus.hasUnwatched
-      ? 'relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-zinc-900/85 p-4 backdrop-blur-sm transition-all duration-200 hover:border-emerald-500/50 shadow-[0_4px_24px_-4px_rgba(16,185,129,0.07)] before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/40 before:to-transparent sm:p-5'
+      ? 'relative overflow-hidden rounded-2xl border border-yellow-500/30 bg-zinc-900/85 p-4 backdrop-blur-sm transition-all duration-200 hover:border-yellow-500/50 shadow-lg before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-yellow-500/25 before:to-transparent sm:p-5'
       : watchStatus.total > 0 && watchStatus.isAllWatched
         ? 'relative overflow-hidden rounded-2xl border border-zinc-800/60 bg-zinc-900/50 p-4 backdrop-blur-sm transition-all duration-200 hover:border-zinc-700/80 opacity-90 hover:opacity-100 shadow-lg sm:p-5'
         : 'relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 backdrop-blur-sm transition-all duration-200 hover:border-zinc-700/80 shadow-lg sm:p-5';
@@ -181,7 +181,7 @@ export function MatchCard({
 
         {/* Scoreline Badge */}
         <div className="flex shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950/90 px-3 py-1 shadow-inner sm:px-4 sm:py-1.5">
-          <span className="font-mono text-base font-black tracking-wider text-emerald-400 tabular-nums sm:text-lg">
+          <span className="font-mono text-base font-black tracking-wider text-yellow-400 tabular-nums sm:text-lg">
             {computedScore
               ? `${computedScore.home} - ${computedScore.away}`
               : 'VS'}

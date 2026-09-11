@@ -42,7 +42,7 @@ export function EmptyState({ date, onJumpToToday }: EmptyStateProps) {
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
         <Button
           onClick={handleJump}
-          className="flex items-center gap-2 bg-emerald-600 text-white shadow-md hover:bg-emerald-500"
+          className="flex items-center gap-2 font-bold shadow-md"
         >
           <Calendar className="h-4 w-4" />
           <span>Jump to Today</span>

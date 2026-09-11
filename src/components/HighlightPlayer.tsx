@@ -41,7 +41,7 @@ export function HighlightPlayer({ highlight, onClose }: HighlightPlayerProps) {
         {/* Floating Top Bar with Goal Info & Close Button */}
         <div className="absolute top-0 inset-x-0 z-10 flex items-center justify-between p-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-auto">
           <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200 truncate pr-2">
-            <Play className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <Play className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
             <span className="truncate">
               {highlight.scorer ?? 'Goal'}{' '}
               {highlight.minute ? `${highlight.minute}` : ''}
@@ -102,7 +102,7 @@ export function HighlightPlayer({ highlight, onClose }: HighlightPlayerProps) {
                 href={highlight.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-500 shadow-md"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90 shadow-md"
               >
                 <span>Watch on Source Host</span>
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -141,7 +141,7 @@ export function HighlightPlayer({ highlight, onClose }: HighlightPlayerProps) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-zinc-400 transition-colors hover:text-zinc-200"
           >
-            <span>Source: {getSourceHostname(highlight.sourceUrl)}</span>
+            <span className='text-primary'>Source: {getSourceHostname(highlight.sourceUrl)}</span>
             <ExternalLink className="h-3 w-3" />
           </a>
         </div>
