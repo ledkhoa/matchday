@@ -277,3 +277,111 @@ export async function ingestRedditHighlights(
   result.persistedCount = highlightInsertMap.size;
   return result;
 }
+
+export interface ActiveMatchInfo {
+  id: string;
+  matchDate: string;
+  teamHome: string;
+  teamAway: string;
+  kickoffTime: number | null;
+  status: string | null;
+}
+
+export interface ActiveMatchWindowResult {
+  hasActiveMatches: boolean;
+  activeMatchCount: number;
+  activeMatches: ActiveMatchInfo[];
+  nextMatch: ActiveMatchInfo | null;
+}
+
+const INACTIVE_STATUSES = new Set(['PST', 'CANC', 'ABD', 'AWD', 'WO']);
+
+/**
+ * Checks Cloudflare D1 for any matches whose kickoff window is currently active.
+ * A match is active if the reference time falls between 15 minutes before kickoff
+ * and 4 hours after kickoff, excluding postponed or cancelled fixtures.
+ */
+export async function hasActiveMatchWindow(
+  d1: D1Database,
+  referenceTimeMs?: number,
+): Promise<ActiveMatchWindowResult> {
+  const db = createDb(d1);
+  const nowMs = referenceTimeMs ?? Date.now();
+
+  // Range covers yesterday through tomorrow in UTC to account for match windows crossing midnight
+  const minDateStr = new Date(nowMs - 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const maxDateStr = new Date(nowMs + 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const todayStr = new Date(nowMs).toISOString().slice(0, 10);
+
+  let candidateMatches: ActiveMatchInfo[] = [];
+  try {
+    candidateMatches = await db
+      .select({
+        id: schema.matches.id,
+        matchDate: schema.matches.matchDate,
+        kickoffTime: schema.matches.kickoffTime,
+        status: schema.matches.status,
+        teamHome: schema.matches.teamHome,
+        teamAway: schema.matches.teamAway,
+      })
+      .from(schema.matches)
+      .where(
+        and(
+          gte(schema.matches.matchDate, minDateStr),
+          lte(schema.matches.matchDate, maxDateStr),
+        ),
+      );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[GAME_HOURS] Failed to query candidate matches: ${message}`);
+    return {
+      hasActiveMatches: false,
+      activeMatchCount: 0,
+      activeMatches: [],
+      nextMatch: null,
+    };
+  }
+
+  const activeMatches: ActiveMatchInfo[] = [];
+  let nextMatch: ActiveMatchInfo | null = null;
+  let minFutureKickoff = Infinity;
+
+  for (const match of candidateMatches) {
+    if (match.status && INACTIVE_STATUSES.has(match.status.toUpperCase())) {
+      continue;
+    }
+
+    if (match.kickoffTime != null) {
+      const windowStart = match.kickoffTime - KICKOFF_WINDOW_BEFORE_MS;
+      const windowEnd = match.kickoffTime + KICKOFF_WINDOW_AFTER_MS;
+
+      if (nowMs >= windowStart && nowMs <= windowEnd) {
+        activeMatches.push(match);
+      } else if (
+        match.kickoffTime > nowMs &&
+        match.kickoffTime < minFutureKickoff
+      ) {
+        minFutureKickoff = match.kickoffTime;
+        nextMatch = match;
+      }
+    } else if (match.matchDate === todayStr) {
+      // Defensive fallback if kickoffTime is null for a match scheduled today:
+      // consider active during global soccer match hours (08:00 - 23:00 UTC)
+      const currentUtcHour = new Date(nowMs).getUTCHours();
+      if (currentUtcHour >= 8 && currentUtcHour <= 23) {
+        activeMatches.push(match);
+      }
+    }
+  }
+
+  return {
+    hasActiveMatches: activeMatches.length > 0,
+    activeMatchCount: activeMatches.length,
+    activeMatches,
+    nextMatch,
+  };
+}

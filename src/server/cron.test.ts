@@ -31,14 +31,24 @@ const mockMeta: TestMeta = {
   changes: 1,
 };
 
+interface MockMatchRow {
+  id: string;
+  match_date: string;
+  team_home: string;
+  team_away: string;
+  kickoff_time?: number | null;
+  status?: string | null;
+}
+
 class TestPreparedStatement implements D1PreparedStatement {
   constructor(
     public readonly query: string,
     public readonly values: unknown[] = [],
+    private readonly mockMatches: MockMatchRow[] = [],
   ) {}
 
   bind(...values: unknown[]): D1PreparedStatement {
-    return new TestPreparedStatement(this.query, values);
+    return new TestPreparedStatement(this.query, values, this.mockMatches);
   }
 
   async first<T>(_colName?: string): Promise<T | null> {
@@ -68,6 +78,30 @@ class TestPreparedStatement implements D1PreparedStatement {
   async raw<T = unknown[]>(options?: {
     columnNames?: boolean;
   }): Promise<[string[], ...T[]] | T[]> {
+    if (this.query.includes('from "matches"') && this.mockMatches.length > 0) {
+      const columns = [
+        'id',
+        'match_date',
+        'kickoff_time',
+        'status',
+        'team_home',
+        'team_away',
+      ];
+      const rows = this.mockMatches.map((m) => [
+        m.id,
+        m.match_date,
+        m.kickoff_time ?? null,
+        m.status ?? null,
+        m.team_home,
+        m.team_away,
+      ]);
+      if (options?.columnNames) {
+        // SAFETY: D1 raw return contract specifies tuple with column names as first element
+        return [columns, ...rows] as [string[], ...T[]];
+      }
+      // SAFETY: D1 raw return contract specifies array of row arrays
+      return rows as T[];
+    }
     if (options?.columnNames) {
       return [[]];
     }
@@ -77,6 +111,7 @@ class TestPreparedStatement implements D1PreparedStatement {
 
 class TestD1Database implements D1Database {
   public executedQueries: string[] = [];
+  public mockMatches: MockMatchRow[] = [];
   public shouldFailPrepare = false;
 
   prepare(query: string): D1PreparedStatement {
@@ -84,7 +119,7 @@ class TestD1Database implements D1Database {
       throw new Error('D1 connection broken');
     }
     this.executedQueries.push(query);
-    return new TestPreparedStatement(query);
+    return new TestPreparedStatement(query, [], this.mockMatches);
   }
 
   async batch<T = unknown>(
@@ -224,8 +259,46 @@ describe('handleScheduled', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('invokes Reddit highlight ingestion when cron is "*/5 * * * *"', async () => {
+  it('skips Reddit ingestion when outside active game hours', async () => {
     const mockDb = new TestD1Database();
+    mockDb.mockMatches = [];
+    const env: CloudflareEnv = {
+      DB: mockDb,
+      REDDIT_USER_AGENT: 'test-agent',
+    };
+
+    let fetchCalled = false;
+    globalThis.fetch = createMockFetch(async () => {
+      fetchCalled = true;
+      return new Response('<feed></feed>', { status: 200 });
+    });
+
+    const event = new TestScheduledEvent('*/5 * * * *');
+    const ctx = new TestExecutionContext();
+
+    const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleScheduled(event, env, ctx);
+    await Promise.all(ctx.promises);
+
+    expect(fetchCalled).toBe(false);
+    expect(consoleLogSpy).toHaveBeenCalled();
+    consoleLogSpy.mockRestore();
+  });
+
+  it('invokes Reddit highlight ingestion when cron is "*/5 * * * *" and active matches exist', async () => {
+    const mockDb = new TestD1Database();
+    const now = Date.now();
+    mockDb.mockMatches = [
+      {
+        id: 'match-1',
+        match_date: new Date(now).toISOString().slice(0, 10),
+        team_home: 'Arsenal',
+        team_away: 'Chelsea',
+        kickoff_time: now,
+        status: '1H',
+      },
+    ];
     const env: CloudflareEnv = {
       DB: mockDb,
       REDDIT_USER_AGENT: 'test-agent',
@@ -240,7 +313,7 @@ describe('handleScheduled', () => {
       });
     });
 
-    const event = new TestScheduledEvent('*/5 * * * *');
+    const event = new TestScheduledEvent('*/5 * * * *', now);
     const ctx = new TestExecutionContext();
 
     const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
@@ -308,6 +381,17 @@ describe('handleScheduled', () => {
 
   it('uses custom user agent when configured in env', async () => {
     const mockDb = new TestD1Database();
+    const now = Date.now();
+    mockDb.mockMatches = [
+      {
+        id: 'match-1',
+        match_date: new Date(now).toISOString().slice(0, 10),
+        team_home: 'Arsenal',
+        team_away: 'Chelsea',
+        kickoff_time: now,
+        status: '1H',
+      },
+    ];
     const env: CloudflareEnv = {
       DB: mockDb,
       REDDIT_USER_AGENT: 'CustomCronAgent/1.0',
@@ -324,7 +408,7 @@ describe('handleScheduled', () => {
       },
     );
 
-    const event = new TestScheduledEvent();
+    const event = new TestScheduledEvent('*/5 * * * *', now);
     const ctx = new TestExecutionContext();
 
     await handleScheduled(event, env, ctx);

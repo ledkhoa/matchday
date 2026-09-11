@@ -2,7 +2,7 @@ import type {
   ScheduledController,
   ExecutionContext,
 } from '@cloudflare/workers-types';
-import { ingestRedditHighlights } from './ingest';
+import { ingestRedditHighlights, hasActiveMatchWindow } from './ingest';
 import { syncDailyFixtures } from './api-football';
 import type { CloudflareEnv } from '../types/env';
 
@@ -99,7 +99,22 @@ export async function handleScheduled(
           );
         } else {
           // Default / 5-minute trigger ("*/5 * * * *"): Ingest Reddit highlights
-          console.log('[CRON] Dispatching 5-minute Reddit highlight ingestion');
+          const nowMs = event.scheduledTime || Date.now();
+          const windowCheck = await hasActiveMatchWindow(env.DB, nowMs);
+
+          if (!windowCheck.hasActiveMatches) {
+            const nextInfo = windowCheck.nextMatch
+              ? ` Next match: ${windowCheck.nextMatch.teamHome} vs ${windowCheck.nextMatch.teamAway} at ${new Date(windowCheck.nextMatch.kickoffTime ?? 0).toISOString()}.`
+              : ' No upcoming matches scheduled.';
+            console.log(
+              `[CRON] Outside of active game hours.${nextInfo} Skipping Reddit ingestion.`,
+            );
+            return;
+          }
+
+          console.log(
+            `[CRON] Dispatching 5-minute Reddit highlight ingestion (${windowCheck.activeMatchCount} active match(es))`,
+          );
           const config =
             env.REDDIT_CLIENT_ID && env.REDDIT_CLIENT_SECRET
               ? {

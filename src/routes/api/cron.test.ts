@@ -134,6 +134,13 @@ const SuccessResponseSchema = z.object({
   durationMs: z.number(),
 });
 
+const SkippedResponseSchema = z.object({
+  success: z.literal(true),
+  skipped: z.literal(true),
+  reason: z.string(),
+  durationMs: z.number(),
+});
+
 describe('/api/cron handler', () => {
   const originalFetch = globalThis.fetch;
 
@@ -329,6 +336,31 @@ describe('/api/cron handler', () => {
     expect(body.details).toContain('D1 connection failure');
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it('skips manual ingestion when skipOutsideGameHours=true and no active matches exist', async () => {
+    const env: CloudflareEnv = {
+      DB: new TestD1Database(),
+      CRON_SECRET: 'super-secret',
+    };
+
+    const request = new Request(
+      'http://localhost/api/cron?skipOutsideGameHours=true',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer super-secret',
+        },
+      },
+    );
+
+    const response = await handleCronPost(request, { env });
+    expect(response.status).toBe(200);
+
+    const json = SkippedResponseSchema.parse(await response.json());
+    expect(json.success).toBe(true);
+    expect(json.skipped).toBe(true);
+    expect(json.reason).toBe('outside_game_hours');
   });
 
   it('delegates POST handler defined on Route server options', async () => {

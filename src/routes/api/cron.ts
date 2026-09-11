@@ -1,11 +1,22 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { ingestRedditHighlights, type IngestResult } from '../../server/ingest';
+import {
+  ingestRedditHighlights,
+  hasActiveMatchWindow,
+  type IngestResult,
+} from '../../server/ingest';
 import type { CloudflareEnv } from '../../types/env';
 
 interface CronSuccessResponse {
   success: true;
-  summary: IngestResult;
+  summary?: IngestResult;
   durationMs: number;
+  skipped?: boolean;
+  reason?: string;
+  nextMatch?: {
+    teamHome: string;
+    teamAway: string;
+    kickoffTime: number | null;
+  } | null;
 }
 
 interface CronErrorResponse {
@@ -23,27 +34,39 @@ export async function handleCronPost(
 ): Promise<Response> {
   const startTime = Date.now();
 
-  // 1. Resolve Cloudflare environment bindings
-  const env = context?.env;
-  const expectedSecret = env?.CRON_SECRET;
-
-  // 2. Enforce Bearer authentication
-  const authHeader = request.headers.get('Authorization');
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7).trim()
-    : null;
-
-  if (!expectedSecret || !token || token !== expectedSecret) {
-    const body: CronErrorResponse = { success: false, error: 'Unauthorized' };
-    return new Response(JSON.stringify(body), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  // 3. Execute ingestion pipeline
   try {
+    const authHeader = request.headers.get('Authorization');
+    const env = context?.env;
+    const expectedSecret = env?.CRON_SECRET;
+
+    if (!expectedSecret) {
+      console.error(
+        '[API:CRON] CRON_SECRET is not configured in worker environment',
+      );
+      const body: CronErrorResponse = { success: false, error: 'Unauthorized' };
+      return new Response(JSON.stringify(body), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
+      console.warn('[API:CRON] Unauthorized manual ingestion request rejected');
+      const body: CronErrorResponse = {
+        success: false,
+        error: 'Unauthorized',
+        details: 'Invalid or missing Authorization header',
+      };
+      return new Response(JSON.stringify(body), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     if (!env?.DB) {
+      console.error(
+        '[API:CRON] Database binding (DB) is missing from worker context',
+      );
       const body: CronErrorResponse = {
         success: false,
         error: 'Server configuration error',
@@ -53,6 +76,31 @@ export async function handleCronPost(
         status: 500,
         headers: { 'Content-Type': 'application/json' },
       });
+    }
+
+    const url = new URL(request.url);
+    const skipOutsideGameHours =
+      url.searchParams.get('skipOutsideGameHours') === 'true';
+
+    if (skipOutsideGameHours) {
+      const windowCheck = await hasActiveMatchWindow(env.DB);
+      if (!windowCheck.hasActiveMatches) {
+        const durationMs = Date.now() - startTime;
+        console.log(
+          '[API:CRON] Skipping manual ingestion: outside active game hours',
+        );
+        const body: CronSuccessResponse = {
+          success: true,
+          skipped: true,
+          reason: 'outside_game_hours',
+          nextMatch: windowCheck.nextMatch,
+          durationMs,
+        };
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     const config =
