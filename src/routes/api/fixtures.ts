@@ -13,7 +13,9 @@ const FixturesRequestBodySchema = z.object({
 interface FixturesSuccessResponse {
   success: true;
   date: string;
+  previousDate: string;
   summary: FixtureSyncResult;
+  previousDaySummary: FixtureSyncResult;
   durationMs: number;
 }
 
@@ -111,20 +113,34 @@ export async function handleFixturesPost(
       });
     }
 
+    const targetDateObj = new Date(targetDate + 'T00:00:00Z');
+    const yesterdayDate = new Date(
+      targetDateObj.getTime() - 24 * 60 * 60 * 1000,
+    )
+      .toISOString()
+      .slice(0, 10);
+
     console.log(
-      `[API:FIXTURES] Manual fixture sync execution started for date: ${targetDate}`,
+      `[API:FIXTURES] Fixture sync started for target date: ${targetDate} and previous day: ${yesterdayDate}`,
     );
     const summary = await syncDailyFixtures(env.DB, apiKey, targetDate);
+    const previousDaySummary = await syncDailyFixtures(
+      env.DB,
+      apiKey,
+      yesterdayDate,
+    );
     const durationMs = Date.now() - startTime;
 
     console.log(
-      `[API:FIXTURES] Fixture sync concluded in ${durationMs}ms: found=${summary.supportedFound}, persisted=${summary.persistedCount}`,
+      `[API:FIXTURES] Fixture sync concluded in ${durationMs}ms: todayFound=${summary.supportedFound}, todayPersisted=${summary.persistedCount}, prevFound=${previousDaySummary.supportedFound}, prevPersisted=${previousDaySummary.persistedCount}`,
     );
 
     const body: FixturesSuccessResponse = {
       success: true,
       date: targetDate,
+      previousDate: yesterdayDate,
       summary,
+      previousDaySummary,
       durationMs,
     };
 

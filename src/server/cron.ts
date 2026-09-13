@@ -40,7 +40,13 @@ export async function handleScheduled(
       );
 
       try {
-        if (event.cron === '0 0 * * *') {
+        const scheduledDate = new Date(event.scheduledTime || Date.now());
+        const isMidnight =
+          event.cron === '0 0 * * *' ||
+          (scheduledDate.getUTCHours() === 0 &&
+            scheduledDate.getUTCMinutes() === 0);
+
+        if (isMidnight) {
           // Midnight UTC: Sync daily official fixtures for today and yesterday.
           // We sync today to discover upcoming matches and logos, and yesterday to
           // finalize official scores and statuses (FT) after all games conclude,
@@ -55,13 +61,21 @@ export async function handleScheduled(
             return;
           }
 
+          const today = scheduledDate.toISOString().slice(0, 10);
+          const yesterday = new Date(
+            scheduledDate.getTime() - 24 * 60 * 60 * 1000,
+          )
+            .toISOString()
+            .slice(0, 10);
+
           // 1. Sync today's fixtures
           const todayResult = await syncDailyFixtures(
             env.DB,
             env.API_FOOTBALL_KEY,
+            today,
           );
           console.log(
-            `[CRON] Today fixture sync completed: found=${todayResult.supportedFound}, persisted=${todayResult.persistedCount}`,
+            `[CRON] Today (${today}) fixture sync completed: found=${todayResult.supportedFound}, persisted=${todayResult.persistedCount}`,
           );
           if (todayResult.errors.length > 0) {
             console.error(
@@ -70,13 +84,6 @@ export async function handleScheduled(
           }
 
           // 2. Sync yesterday's fixtures to record final scores and statuses
-          const scheduledDate = new Date(event.scheduledTime || Date.now());
-          const yesterday = new Date(
-            scheduledDate.getTime() - 24 * 60 * 60 * 1000,
-          )
-            .toISOString()
-            .slice(0, 10);
-
           console.log(
             `[CRON] Dispatching previous day fixture sync for ${yesterday}`,
           );

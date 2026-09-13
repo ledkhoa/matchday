@@ -125,11 +125,19 @@ const ErrorResponseSchema = z.object({
 const SuccessResponseSchema = z.object({
   success: z.literal(true),
   date: z.string(),
+  previousDate: z.string().optional(),
   summary: z.object({
     totalReceived: z.number(),
     supportedFound: z.number(),
     persistedCount: z.number(),
   }),
+  previousDaySummary: z
+    .object({
+      totalReceived: z.number(),
+      supportedFound: z.number(),
+      persistedCount: z.number(),
+    })
+    .optional(),
   durationMs: z.number(),
 });
 
@@ -300,9 +308,9 @@ describe('/api/fixtures handler', () => {
       API_FOOTBALL_KEY: 'test-api-key',
     };
 
-    let requestedUrl = '';
+    const requestedUrls: string[] = [];
     globalThis.fetch = createMockFetch(async (input) => {
-      requestedUrl = String(input);
+      requestedUrls.push(String(input));
       return new Response(
         JSON.stringify({
           get: 'fixtures',
@@ -344,9 +352,17 @@ describe('/api/fixtures handler', () => {
     const body = SuccessResponseSchema.parse(await response.json());
     expect(body.success).toBe(true);
     expect(body.date).toBe('2026-09-10');
+    expect(body.previousDate).toBe('2026-09-09');
     expect(body.summary.supportedFound).toBe(1);
     expect(body.summary.persistedCount).toBe(1);
-    expect(requestedUrl).toContain('date=2026-09-10');
+    expect(body.previousDaySummary?.supportedFound).toBe(1);
+    expect(body.previousDaySummary?.persistedCount).toBe(1);
+    expect(requestedUrls.some((url) => url.includes('date=2026-09-10'))).toBe(
+      true,
+    );
+    expect(requestedUrls.some((url) => url.includes('date=2026-09-09'))).toBe(
+      true,
+    );
 
     consoleLogSpy.mockRestore();
   });

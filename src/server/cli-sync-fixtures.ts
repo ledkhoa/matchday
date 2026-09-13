@@ -18,19 +18,38 @@ async function runCliSync() {
 
     // Support optional CLI argument: bun run db:sync-fixtures 2026-09-10
     const targetDate = process.argv[2] || new Date().toISOString().slice(0, 10);
+    const targetDateObj = new Date(targetDate + 'T00:00:00Z');
+    const yesterdayDate = new Date(
+      targetDateObj.getTime() - 24 * 60 * 60 * 1000,
+    )
+      .toISOString()
+      .slice(0, 10);
+
     console.log(
-      `[FIXTURES] Syncing official fixtures for date: ${targetDate}...`,
+      `[FIXTURES] Syncing official fixtures for target date: ${targetDate} and previous day: ${yesterdayDate}...`,
     );
 
-    const result = await syncDailyFixtures(env.DB, apiKey, targetDate);
+    const todayResult = await syncDailyFixtures(env.DB, apiKey, targetDate);
+    const yesterdayResult = await syncDailyFixtures(
+      env.DB,
+      apiKey,
+      yesterdayDate,
+    );
 
     console.log('\n--- Fixture Sync Summary ---');
-    console.log(`📅 Target Date:         ${result.date}`);
-    console.log(`📡 Worldwide Matches:   ${result.totalReceived}`);
-    console.log(`⚽ Supported Matches:   ${result.supportedFound}`);
-    console.log(`💾 Persisted in D1:     ${result.persistedCount}`);
-    if (result.errors.length > 0) {
-      console.warn('⚠️  Warnings/Errors:', result.errors);
+    console.log(`📅 Target Date (${todayResult.date}):`);
+    console.log(`  📡 Worldwide Matches:   ${todayResult.totalReceived}`);
+    console.log(`  ⚽ Supported Matches:   ${todayResult.supportedFound}`);
+    console.log(`  💾 Persisted in D1:     ${todayResult.persistedCount}`);
+    if (todayResult.errors.length > 0) {
+      console.warn('  ⚠️  Warnings/Errors:', todayResult.errors);
+    }
+    console.log(`📅 Previous Day (${yesterdayResult.date}):`);
+    console.log(`  📡 Worldwide Matches:   ${yesterdayResult.totalReceived}`);
+    console.log(`  ⚽ Supported Matches:   ${yesterdayResult.supportedFound}`);
+    console.log(`  💾 Persisted in D1:     ${yesterdayResult.persistedCount}`);
+    if (yesterdayResult.errors.length > 0) {
+      console.warn('  ⚠️  Warnings/Errors:', yesterdayResult.errors);
     }
     console.log('----------------------------\n');
     console.log('✅ Fixture synchronization complete!');
