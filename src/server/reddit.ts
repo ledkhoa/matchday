@@ -1,5 +1,3 @@
-import { XMLParser } from 'fast-xml-parser';
-import { z } from 'zod';
 import { parseRedditTitle } from '../lib/parser';
 
 export interface HighlightPost {
@@ -24,42 +22,14 @@ export const REDDIT_RSS_SEARCH_URL =
 export const DEFAULT_BROWSER_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 MatchDayDigest/1.0';
 
-const AtomContentSchema = z.union([
-  z.string(),
-  z
-    .object({
-      '#text': z.string().optional(),
-    })
-    .transform((obj) => obj['#text'] ?? ''),
-]);
-
-const AtomLinkSchema = z.union([
-  z.string(),
-  z
-    .object({
-      '@_href': z.string().optional(),
-    })
-    .transform((obj) => obj['@_href'] ?? ''),
-]);
-
-const AtomEntrySchema = z.object({
-  id: z.string().optional(),
-  title: z.string().optional(),
-  published: z.string().optional(),
-  updated: z.string().optional(),
-  link: AtomLinkSchema.optional(),
-  content: AtomContentSchema.optional(),
-});
-
-type AtomEntry = z.infer<typeof AtomEntrySchema>;
-
-const AtomFeedSchema = z.object({
-  feed: z
-    .object({
-      entry: z.union([AtomEntrySchema, z.array(AtomEntrySchema)]).optional(),
-    })
-    .optional(),
-});
+function decodeXmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'");
+}
 
 /**
  * Extracts target media link from Reddit Atom entry content HTML.
@@ -72,6 +42,79 @@ export function extractMediaUrlFromAtomContent(content: string): string | null {
     ) || content.match(/<a\s+href="([^"]+)">\[link\]<\/a>/i);
 
   return match ? match[1] : null;
+}
+
+/**
+ * Parses Reddit Atom XML feed using a lightweight streaming regex scanner.
+ * Avoids the heavy CPU penalty of full DOM/XML parsers and Zod schemas, keeping
+ * Cloudflare Workers cron execution well within the 10ms CPU quota.
+ */
+export function parseAtomFeed(xmlText: string): HighlightPost[] {
+  const results: HighlightPost[] = [];
+  const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = entryRegex.exec(xmlText)) !== null) {
+    const entryXml = match[1];
+
+    const titleMatch = entryXml.match(/<title(?:[^>]*)>([\s\S]*?)<\/title>/i);
+    if (!titleMatch) continue;
+    const title = decodeXmlEntities(titleMatch[1].trim());
+    if (!title) continue;
+
+    // Filter out non-goal post titles immediately
+    if (!parseRedditTitle(title)) {
+      continue;
+    }
+
+    const contentMatch = entryXml.match(
+      /<content(?:[^>]*)>([\s\S]*?)<\/content>/i,
+    );
+    const contentStr = contentMatch ? contentMatch[1] : '';
+    const sourceUrl = extractMediaUrlFromAtomContent(contentStr);
+    if (!sourceUrl || sourceUrl.includes('reddit.com/r/soccer/comments')) {
+      continue;
+    }
+
+    // Canonical Reddit ID (e.g. "t3_1wc7ce0" -> id: "1wc7ce0", name: "t3_1wc7ce0")
+    const idMatch = entryXml.match(/<id(?:[^>]*)>([\s\S]*?)<\/id>/i);
+    const rawId = idMatch ? idMatch[1].trim() : '';
+    const cleanId = rawId.startsWith('t3_')
+      ? rawId.slice(3)
+      : rawId.replace(/^.*\/comments\//, '').split('/')[0] || rawId;
+    const name = cleanId.startsWith('t3_') ? cleanId : `t3_${cleanId}`;
+
+    const linkMatch = entryXml.match(/<link\s+[^>]*href=["']([^"']+)["']/i);
+    const permalink = linkMatch ? linkMatch[1] : '';
+
+    const pubMatch =
+      entryXml.match(/<published(?:[^>]*)>([\s\S]*?)<\/published>/i) ||
+      entryXml.match(/<updated(?:[^>]*)>([\s\S]*?)<\/updated>/i);
+    const publishedIso = pubMatch ? pubMatch[1].trim() : '';
+    const createdUtc = publishedIso
+      ? Math.floor(new Date(publishedIso).getTime() / 1000)
+      : Math.floor(Date.now() / 1000);
+
+    let domain = '';
+    try {
+      domain = new URL(sourceUrl).hostname.replace(/^www\./, '');
+    } catch {
+      domain = 'external';
+    }
+
+    results.push({
+      id: cleanId,
+      name,
+      title,
+      url: sourceUrl,
+      permalink,
+      domain,
+      createdUtc,
+      flair: 'Goal Clip',
+    });
+  }
+
+  return results;
 }
 
 /**
@@ -104,69 +147,5 @@ export async function fetchRedditPosts(
   }
 
   const xmlText = await response.text();
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: '@_',
-    htmlEntities: true,
-  });
-
-  const parsedRaw: unknown = parser.parse(xmlText);
-  const parsed = AtomFeedSchema.safeParse(parsedRaw);
-  if (!parsed.success || !parsed.data.feed?.entry) {
-    return [];
-  }
-
-  const rawEntries = parsed.data.feed.entry;
-  const entries: AtomEntry[] = Array.isArray(rawEntries)
-    ? rawEntries
-    : [rawEntries];
-  const results: HighlightPost[] = [];
-
-  for (const entry of entries) {
-    const title = entry.title?.trim() ?? '';
-    if (!title) continue;
-
-    // Filter out non-goal post titles immediately
-    if (!parseRedditTitle(title)) {
-      continue;
-    }
-
-    const contentStr = entry.content ?? '';
-    const sourceUrl = extractMediaUrlFromAtomContent(contentStr);
-    if (!sourceUrl || sourceUrl.includes('reddit.com/r/soccer/comments')) {
-      continue;
-    }
-
-    // Determine canonical Reddit ID (e.g., "t3_1wc7ce0" -> id: "1wc7ce0", name: "t3_1wc7ce0")
-    const rawId = entry.id ?? '';
-    const cleanId = rawId.startsWith('t3_')
-      ? rawId.slice(3)
-      : rawId.replace(/^.*\/comments\//, '').split('/')[0] || rawId;
-    const name = cleanId.startsWith('t3_') ? cleanId : `t3_${cleanId}`;
-
-    const permalink = entry.link ?? '';
-    const publishedIso =
-      entry.published ?? entry.updated ?? new Date().toISOString();
-    const createdUtc = Math.floor(new Date(publishedIso).getTime() / 1000);
-
-    let domain = '';
-    try {
-      domain = new URL(sourceUrl).hostname.replace(/^www\./, '');
-    } catch {
-      domain = 'external';
-    }
-
-    results.push({
-      id: cleanId,
-      name,
-      title,
-      url: sourceUrl,
-      permalink,
-      domain,
-      createdUtc,
-      flair: 'Goal Clip',
-    });
-  }
-
-  return results;
+  return parseAtomFeed(xmlText);
 }

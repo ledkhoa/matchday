@@ -213,8 +213,8 @@ export function jaroDistance(s1: string, s2: string): number {
   if (!s1.length || !s2.length) return 0.0;
 
   const matchWindow = Math.floor(Math.max(s1.length, s2.length) / 2) - 1;
-  const s1Matches = Array.from({ length: s1.length }, () => false);
-  const s2Matches = Array.from({ length: s2.length }, () => false);
+  const s1Matches = new Uint8Array(s1.length);
+  const s2Matches = new Uint8Array(s2.length);
 
   let matches = 0;
   for (let i = 0; i < s1.length; i++) {
@@ -222,8 +222,8 @@ export function jaroDistance(s1: string, s2: string): number {
     const end = Math.min(i + matchWindow + 1, s2.length);
     for (let j = start; j < end; j++) {
       if (!s2Matches[j] && s1[i] === s2[j]) {
-        s1Matches[i] = true;
-        s2Matches[j] = true;
+        s1Matches[i] = 1;
+        s2Matches[j] = 1;
         matches++;
         break;
       }
@@ -274,48 +274,67 @@ export function jaroWinkler(s1: string, s2: string, p = 0.1): number {
   return jaro + prefix * p * (1 - jaro);
 }
 
+export interface TeamProfile {
+  stem: string;
+  tokens: string[];
+  tokenSet: Set<string>;
+  isNonSenior: boolean;
+}
+
+const PROFILE_CACHE = new Map<string, TeamProfile>();
+
+export function getTeamProfile(name: string): TeamProfile {
+  let profile = PROFILE_CACHE.get(name);
+  if (profile) return profile;
+
+  const stem = normalizeTeamName(name);
+  const tokens = stem.split(' ').filter((w) => w.length >= 3);
+  profile = {
+    stem,
+    tokens,
+    tokenSet: new Set(tokens),
+    isNonSenior: isNonSeniorSquad(name),
+  };
+  if (PROFILE_CACHE.size < 2000) {
+    PROFILE_CACHE.set(name, profile);
+  }
+  return profile;
+}
+
 /**
  * Evaluates similarity between two raw team names using alias mapping,
  * anti-collision rules, token containment, and Jaro-Winkler distance.
  */
 export function calculateTeamSimilarity(nameA: string, nameB: string): number {
+  const profA = getTeamProfile(nameA);
+  const profB = getTeamProfile(nameB);
+
   // Reject similarity if one team is a non-senior squad (youth/reserve/women) and the other is senior
-  const aNonSenior = isNonSeniorSquad(nameA);
-  const bNonSenior = isNonSeniorSquad(nameB);
-  if (aNonSenior !== bNonSenior) {
+  if (profA.isNonSenior !== profB.isNonSenior) {
     return 0.0;
   }
 
-  const stemA = normalizeTeamName(nameA);
-  const stemB = normalizeTeamName(nameB);
-
   // Anti-collision guard
-  if (isCollision(stemA, stemB)) {
+  if (isCollision(profA.stem, profB.stem)) {
     return 0.0;
   }
 
   // Exact normalized equality
-  if (stemA === stemB) {
+  if (profA.stem === profB.stem) {
     return 1.0;
   }
 
   // Token subset matching (for tokens of length >= 3)
-  const tokensA = stemA.split(' ').filter((w) => w.length >= 3);
-  const tokensB = stemB.split(' ').filter((w) => w.length >= 3);
-
-  if (tokensA.length > 0 && tokensB.length > 0) {
-    const setA = new Set(tokensA);
-    const setB = new Set(tokensB);
-
-    const isSubsetAInB = tokensA.every((t) => setB.has(t));
-    const isSubsetBInA = tokensB.every((t) => setA.has(t));
+  if (profA.tokens.length > 0 && profB.tokens.length > 0) {
+    const isSubsetAInB = profA.tokens.every((t) => profB.tokenSet.has(t));
+    const isSubsetBInA = profB.tokens.every((t) => profA.tokenSet.has(t));
 
     if (isSubsetAInB || isSubsetBInA) {
       return 0.9;
     }
   }
 
-  return jaroWinkler(stemA, stemB);
+  return jaroWinkler(profA.stem, profB.stem);
 }
 
 export interface MatcherCandidate {
@@ -348,19 +367,25 @@ export function matchPostToFixture(
   let bestResult: MatchResult | null = null;
 
   for (const candidate of candidates) {
-    // 1. Direct orientation
+    // 1. Direct orientation with early exit if home score is below threshold
+    let directValid = false;
+    let directConfidence = 0;
     const directHome = calculateTeamSimilarity(postHome, candidate.teamHome);
-    const directAway = calculateTeamSimilarity(postAway, candidate.teamAway);
-    const directConfidence = (directHome + directAway) / 2;
-    const directValid =
-      directHome >= 0.75 && directAway >= 0.75 && directConfidence >= 0.82;
+    if (directHome >= 0.75) {
+      const directAway = calculateTeamSimilarity(postAway, candidate.teamAway);
+      directConfidence = (directHome + directAway) / 2;
+      directValid = directAway >= 0.75 && directConfidence >= 0.82;
+    }
 
-    // 2. Inverted orientation (Reddit title reversed or neutral venue)
+    // 2. Inverted orientation with early exit if inverted home score is below threshold
+    let invValid = false;
+    let invConfidence = 0;
     const invHome = calculateTeamSimilarity(postHome, candidate.teamAway);
-    const invAway = calculateTeamSimilarity(postAway, candidate.teamHome);
-    const invConfidence = (invHome + invAway) / 2;
-    const invValid =
-      invHome >= 0.75 && invAway >= 0.75 && invConfidence >= 0.82;
+    if (invHome >= 0.75) {
+      const invAway = calculateTeamSimilarity(postAway, candidate.teamHome);
+      invConfidence = (invHome + invAway) / 2;
+      invValid = invAway >= 0.75 && invConfidence >= 0.82;
+    }
 
     let candidateResult: MatchResult | null = null;
     if (directValid && invValid) {
