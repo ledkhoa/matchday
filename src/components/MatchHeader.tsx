@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Clock, Check } from 'lucide-react';
-import { formatKickoffTime } from '#/lib/formatters';
+import { formatKickoffTime, isFullTimeStatus } from '#/lib/formatters';
 import { cn } from '#/lib/utils';
 import type { MatchWatchStatus } from '#/hooks/useWatchHistory';
 
@@ -31,11 +31,16 @@ export function MatchHeader({
   const [activeTz, setActiveTz] = useState<string | undefined>(timeZone);
 
   useEffect(() => {
-    if (!timeZone && 'Intl' in globalThis) {
+    if ('Intl' in globalThis) {
       try {
         const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        if (detected && detected !== activeTz) {
-          setActiveTz(detected);
+        if (detected) {
+          // If no timeZone was passed, or if timeZone was the 'UTC' SSR fallback while user is in local timezone
+          if (!timeZone || (timeZone === 'UTC' && detected !== 'UTC')) {
+            setActiveTz(detected);
+          } else if (timeZone && timeZone !== activeTz) {
+            setActiveTz(timeZone);
+          }
         }
       } catch {
         // Leave activeTz fallback
@@ -44,8 +49,7 @@ export function MatchHeader({
   }, [timeZone, activeTz]);
 
   const cleanStatus = status?.trim().toUpperCase();
-  const isFullTime =
-    cleanStatus === 'FT' || cleanStatus === 'AET' || cleanStatus === 'PEN';
+  const isFullTime = isFullTimeStatus(status);
   const fullTimeLabel =
     cleanStatus === 'AET'
       ? 'Full Time (ET)'

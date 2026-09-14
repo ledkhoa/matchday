@@ -68,6 +68,12 @@ export async function loadDateRoute({
 
   // 2. Pre-fetch via TanStack Query client for SSR hydration respecting viewer timezone
   let tz = context?.tz;
+  if ('document' in globalThis && 'Intl' in globalThis) {
+    const clientTz = resolveRequestTimezone();
+    if (clientTz && clientTz !== 'UTC') {
+      tz = clientTz;
+    }
+  }
   if (!tz) {
     if ('document' in globalThis && 'Intl' in globalThis) {
       tz = resolveRequestTimezone();
@@ -94,7 +100,18 @@ export function DateRouteComponent() {
   } catch {
     routeTz = undefined;
   }
-  const tz = useMemo(() => routeTz || resolveRequestTimezone(), [routeTz]);
+  const tz = useMemo(() => {
+    if ('document' in globalThis && 'Intl' in globalThis) {
+      const clientTz = resolveRequestTimezone();
+      if (clientTz && clientTz !== 'UTC') {
+        return clientTz;
+      }
+    }
+    if (routeTz && routeTz !== 'UTC') {
+      return routeTz;
+    }
+    return routeTz || resolveRequestTimezone() || 'UTC';
+  }, [routeTz]);
 
   // SAFETY: Safely resolve active league from URL search params with fallback for test mocks
   let activeLeague: string | undefined;

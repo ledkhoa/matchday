@@ -5,6 +5,7 @@ import {
   formatKickoffTime,
   getTagCategory,
   getTeamInitials,
+  isFullTimeStatus,
   resolveDisplayScore,
 } from './formatters';
 import type { Highlight } from '#/db/schema';
@@ -57,32 +58,100 @@ describe('formatters', () => {
     });
   });
 
-  describe('resolveDisplayScore', () => {
-    it('returns official score when scoreHome and scoreAway are present, even for 0-0', () => {
-      expect(resolveDisplayScore({ scoreHome: 0, scoreAway: 0 }, [])).toEqual({
-        home: 0,
-        away: 0,
-      });
+  describe('isFullTimeStatus', () => {
+    it('returns true for completed match status codes', () => {
+      expect(isFullTimeStatus('FT')).toBe(true);
+      expect(isFullTimeStatus('ft')).toBe(true);
+      expect(isFullTimeStatus('AET')).toBe(true);
+      expect(isFullTimeStatus('PEN')).toBe(true);
+      expect(isFullTimeStatus(' FT ')).toBe(true);
     });
 
-    it('prefers official score over computed score from highlights', () => {
-      const hls = [makeHighlight({ scoreHome: 1, scoreAway: 0 })];
-      expect(resolveDisplayScore({ scoreHome: 2, scoreAway: 1 }, hls)).toEqual({
+    it('returns false for in-progress, upcoming, or absent statuses', () => {
+      expect(isFullTimeStatus('NS')).toBe(false);
+      expect(isFullTimeStatus('1H')).toBe(false);
+      expect(isFullTimeStatus('HT')).toBe(false);
+      expect(isFullTimeStatus('2H')).toBe(false);
+      expect(isFullTimeStatus('LIVE')).toBe(false);
+      expect(isFullTimeStatus(null)).toBe(false);
+      expect(isFullTimeStatus(undefined)).toBe(false);
+      expect(isFullTimeStatus('')).toBe(false);
+    });
+  });
+
+  describe('resolveDisplayScore', () => {
+    it('tracks score based on highlights when game is not in full-time status', () => {
+      // e.g. API-Football had 1-0 from earlier in the game, but highlights show 2-1
+      const hls = [
+        makeHighlight({ id: '1', scoreHome: 1, scoreAway: 0 }),
+        makeHighlight({ id: '2', scoreHome: 2, scoreAway: 0 }),
+        makeHighlight({ id: '3', scoreHome: 2, scoreAway: 1 }),
+      ];
+      expect(
+        resolveDisplayScore({ scoreHome: 1, scoreAway: 0, status: 'NS' }, hls),
+      ).toEqual({
         home: 2,
         away: 1,
       });
     });
 
-    it('falls back to computeMatchScore when official scores are null', () => {
+    it('prefers official score from API when game is in full-time status (FT)', () => {
+      const hls = [makeHighlight({ scoreHome: 1, scoreAway: 0 })];
+      expect(
+        resolveDisplayScore({ scoreHome: 2, scoreAway: 1, status: 'FT' }, hls),
+      ).toEqual({
+        home: 2,
+        away: 1,
+      });
+    });
+
+    it('prefers official score when game is in extra-time or penalty full-time status (AET, PEN)', () => {
+      const hls = [makeHighlight({ scoreHome: 1, scoreAway: 1 })];
+      expect(
+        resolveDisplayScore({ scoreHome: 3, scoreAway: 2, status: 'AET' }, hls),
+      ).toEqual({
+        home: 3,
+        away: 2,
+      });
+      expect(
+        resolveDisplayScore({ scoreHome: 5, scoreAway: 4, status: 'PEN' }, hls),
+      ).toEqual({
+        home: 5,
+        away: 4,
+      });
+    });
+
+    it('returns official score when scoreHome and scoreAway are present and no highlights exist', () => {
+      expect(
+        resolveDisplayScore({ scoreHome: 0, scoreAway: 0, status: 'FT' }, []),
+      ).toEqual({
+        home: 0,
+        away: 0,
+      });
+      expect(
+        resolveDisplayScore({ scoreHome: 0, scoreAway: 0, status: 'NS' }, []),
+      ).toEqual({
+        home: 0,
+        away: 0,
+      });
+    });
+
+    it('falls back to computeMatchScore when official scores are null even at full time', () => {
       const hls = [makeHighlight({ scoreHome: 3, scoreAway: 2 })];
       expect(
-        resolveDisplayScore({ scoreHome: null, scoreAway: null }, hls),
+        resolveDisplayScore(
+          { scoreHome: null, scoreAway: null, status: 'FT' },
+          hls,
+        ),
       ).toEqual({ home: 3, away: 2 });
     });
 
     it('returns null when both official scores and highlights are absent', () => {
       expect(
-        resolveDisplayScore({ scoreHome: null, scoreAway: null }, []),
+        resolveDisplayScore(
+          { scoreHome: null, scoreAway: null, status: 'NS' },
+          [],
+        ),
       ).toBeNull();
     });
   });

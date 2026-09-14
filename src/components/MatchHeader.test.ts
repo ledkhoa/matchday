@@ -55,6 +55,33 @@ describe('MatchHeader component', () => {
     expect(getByText('Kickoff: 12:00 PM')).toBeDefined();
   });
 
+  it('upgrades UTC fallback to detected client timezone on mount', () => {
+    // 16:30 UTC = 9:30 AM PDT in America/Los_Angeles
+    const kickoffTime = Date.UTC(2026, 8, 10, 16, 30);
+    const originalResolvedOptions =
+      Intl.DateTimeFormat.prototype.resolvedOptions;
+    Intl.DateTimeFormat.prototype.resolvedOptions = function () {
+      return {
+        ...originalResolvedOptions.call(this),
+        timeZone: 'America/Los_Angeles',
+      };
+    };
+
+    try {
+      const { getByText } = render(
+        React.createElement(MatchHeader, {
+          competition: 'Serie A',
+          kickoffTime,
+          timeZone: 'UTC',
+        }),
+      );
+
+      expect(getByText('Kickoff: 9:30 AM')).toBeDefined();
+    } finally {
+      Intl.DateTimeFormat.prototype.resolvedOptions = originalResolvedOptions;
+    }
+  });
+
   it('collapses cleanly to null when neither competition nor kickoff time is available', () => {
     const { container } = render(
       React.createElement(MatchHeader, {

@@ -25,23 +25,58 @@ export function computeMatchScore(highlights: Highlight[]): MatchScore | null {
 }
 
 /**
+ * Checks whether a match status string represents a completed/full-time match.
+ * Standard API-Football full-time statuses:
+ * - 'FT': Match Finished
+ * - 'AET': Match Finished After Extra Time
+ * - 'PEN': Match Finished After Penalty Shootout
+ */
+export function isFullTimeStatus(status?: string | null): boolean {
+  if (!status) return false;
+  const clean = status.trim().toUpperCase();
+  return clean === 'FT' || clean === 'AET' || clean === 'PEN';
+}
+
+/**
  * Resolves the display scoreline for a match.
- * Prefers the official score from API-Football (especially for 0-0 draws or matches without Reddit clips).
- * Falls back to computing the score from highlight clips, and returns null if neither exists.
+ * - If the match is in full-time status ('FT', 'AET', 'PEN'), prefers the official score from API-Football.
+ * - If the match is NOT in full-time status (live, upcoming, or in-progress), tracks the score based on highlights,
+ *   falling back to official API score or null if no highlights exist.
  */
 export function resolveDisplayScore(
-  match: { scoreHome?: number | null; scoreAway?: number | null },
+  match: {
+    scoreHome?: number | null;
+    scoreAway?: number | null;
+    status?: string | null;
+  },
   highlights: Highlight[],
 ): MatchScore | null {
-  if (
+  const isFullTime = isFullTimeStatus(match.status);
+  const highlightScore = computeMatchScore(highlights);
+  const hasOfficialScore =
     match.scoreHome !== null &&
     match.scoreHome !== undefined &&
     match.scoreAway !== null &&
-    match.scoreAway !== undefined
-  ) {
-    return { home: match.scoreHome, away: match.scoreAway };
+    match.scoreAway !== undefined;
+
+  // When game is full-time, use official score recorded from API-Football
+  if (isFullTime) {
+    if (hasOfficialScore) {
+      return { home: match.scoreHome!, away: match.scoreAway! };
+    }
+    return highlightScore;
   }
-  return computeMatchScore(highlights);
+
+  // When game is not in full-time status, track real-time score based on highlight clips
+  if (highlightScore !== null) {
+    return highlightScore;
+  }
+
+  if (hasOfficialScore) {
+    return { home: match.scoreHome!, away: match.scoreAway! };
+  }
+
+  return null;
 }
 
 /**
