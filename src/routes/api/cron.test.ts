@@ -7,9 +7,17 @@ import type {
   D1ExecResult,
   D1DatabaseSession,
   D1Meta,
+  Workflow,
+  WorkflowInstance,
+  InstanceStatus,
+  WorkflowInstanceCreateOptions,
+  WorkflowBatchDeleteResult,
 } from '@cloudflare/workers-types';
 import { handleCronPost, postServerHandler, Route } from './cron';
-import type { CloudflareEnv } from '../../types/env';
+import type {
+  CloudflareEnv,
+  HighlightIngestWorkflowParams,
+} from '../../types/env';
 
 type MetaValue =
   string | number | boolean | undefined | { sql_duration_ms: number };
@@ -140,6 +148,58 @@ const SkippedResponseSchema = z.object({
   reason: z.string(),
   durationMs: z.number(),
 });
+
+const WorkflowSuccessResponseSchema = z.object({
+  success: z.literal(true),
+  mode: z.literal('workflow'),
+  instanceId: z.string(),
+  durationMs: z.number(),
+});
+
+class MockWorkflowInstance implements WorkflowInstance {
+  constructor(
+    public id: string,
+    public currentStatus: InstanceStatus = { status: 'running' },
+  ) {}
+  async pause(): Promise<void> {}
+  async resume(): Promise<void> {}
+  async terminate(): Promise<void> {}
+  async restart(): Promise<void> {}
+  async delete(): Promise<void> {}
+  async status(): Promise<InstanceStatus> {
+    return this.currentStatus;
+  }
+  async sendEvent(): Promise<void> {}
+}
+
+class MockWorkflowBinding<T = unknown> implements Workflow<T> {
+  constructor(
+    private readonly createFn?: (
+      options?: WorkflowInstanceCreateOptions<T>,
+    ) => Promise<WorkflowInstance>,
+  ) {}
+
+  async create(
+    options?: WorkflowInstanceCreateOptions<T>,
+  ): Promise<WorkflowInstance> {
+    if (this.createFn) {
+      return this.createFn(options);
+    }
+    return new MockWorkflowInstance(options?.id ?? 'wf-manual-1');
+  }
+
+  async get(id: string): Promise<WorkflowInstance> {
+    return new MockWorkflowInstance(id);
+  }
+
+  async createBatch(): Promise<WorkflowInstance[]> {
+    return [];
+  }
+
+  async deleteBatch(): Promise<WorkflowBatchDeleteResult> {
+    return { deleted: [], errors: [] };
+  }
+}
 
 describe('/api/cron handler', () => {
   const originalFetch = globalThis.fetch;
@@ -383,5 +443,104 @@ describe('/api/cron handler', () => {
       context: { env },
     });
     expect(response.status).toBe(401);
+  });
+
+  it('dispatches to HIGHLIGHT_INGEST_WORKFLOW when binding is present', async () => {
+    let capturedOptions:
+      WorkflowInstanceCreateOptions<HighlightIngestWorkflowParams> | undefined;
+    const workflowBinding =
+      new MockWorkflowBinding<HighlightIngestWorkflowParams>(
+        async (options) => {
+          capturedOptions = options;
+          return new MockWorkflowInstance(
+            options?.id ?? 'wf-manual-highlight-1',
+          );
+        },
+      );
+
+    const env: CloudflareEnv = {
+      DB: new TestD1Database(),
+      CRON_SECRET: 'super-secret',
+      HIGHLIGHT_INGEST_WORKFLOW: workflowBinding,
+      REDDIT_USER_AGENT: 'test-agent',
+    };
+
+    const request = new Request('http://localhost/api/cron', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer super-secret',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        instanceId: 'custom-ingest-inst-1',
+        force: true,
+      }),
+    });
+
+    const response = await handleCronPost(request, { env });
+    expect(response.status).toBe(200);
+
+    const body = WorkflowSuccessResponseSchema.parse(await response.json());
+    expect(body.success).toBe(true);
+    expect(body.mode).toBe('workflow');
+    expect(body.instanceId).toBe('custom-ingest-inst-1');
+    expect(capturedOptions?.id).toBe('custom-ingest-inst-1');
+    expect(capturedOptions?.params?.force).toBe(true);
+  });
+
+  it('returns 409 conflict when workflow instance already exists', async () => {
+    const workflowBinding =
+      new MockWorkflowBinding<HighlightIngestWorkflowParams>(
+        async (options) => {
+          throw new Error(`Instance with id '${options?.id}' already exists`);
+        },
+      );
+
+    const env: CloudflareEnv = {
+      DB: new TestD1Database(),
+      CRON_SECRET: 'super-secret',
+      HIGHLIGHT_INGEST_WORKFLOW: workflowBinding,
+    };
+
+    const request = new Request('http://localhost/api/cron', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer super-secret',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        instanceId: 'duplicate-inst-id',
+        force: true,
+      }),
+    });
+
+    const response = await handleCronPost(request, { env });
+    expect(response.status).toBe(409);
+
+    const body = ErrorResponseSchema.parse(await response.json());
+    expect(body.success).toBe(false);
+    expect(body.error).toBe('Workflow instance already exists');
+  });
+
+  it('returns 500 when mode=workflow is explicitly requested but HIGHLIGHT_INGEST_WORKFLOW binding is absent', async () => {
+    const env: CloudflareEnv = {
+      DB: new TestD1Database(),
+      CRON_SECRET: 'super-secret',
+      // HIGHLIGHT_INGEST_WORKFLOW omitted
+    };
+
+    const request = new Request('http://localhost/api/cron?mode=workflow', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer super-secret',
+      },
+    });
+
+    const response = await handleCronPost(request, { env });
+    expect(response.status).toBe(500);
+
+    const body = ErrorResponseSchema.parse(await response.json());
+    expect(body.success).toBe(false);
+    expect(body.error).toBe('Server configuration error');
   });
 });

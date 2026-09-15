@@ -157,6 +157,42 @@ export async function handleScheduled(
                   userAgent: env.REDDIT_USER_AGENT,
                 };
 
+          // Dispatch durable workflow if binding is present
+          if (env.HIGHLIGHT_INGEST_WORKFLOW) {
+            const FIVE_MIN_MS = 5 * 60 * 1000;
+            const bucketTimeMs = Math.floor(nowMs / FIVE_MIN_MS) * FIVE_MIN_MS;
+            const bucketIso = new Date(bucketTimeMs)
+              .toISOString()
+              .replace(/[:.]/g, '-');
+            const instanceId = `highlight-ingest-${bucketIso}`;
+
+            try {
+              const instance = await env.HIGHLIGHT_INGEST_WORKFLOW.create({
+                id: instanceId,
+                params: {
+                  referenceTimeMs: nowMs,
+                  userAgent: env.REDDIT_USER_AGENT,
+                },
+              });
+              console.log(
+                `[CRON] Started HighlightIngestWorkflow instance: ${instance.id}`,
+              );
+              return;
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              if (msg.includes('already exists') || msg.includes('conflict')) {
+                console.log(
+                  `[CRON] Workflow instance ${instanceId} already exists; skipping duplicate trigger.`,
+                );
+                return;
+              }
+              console.warn(
+                `[CRON] Failed to create workflow instance (${msg}), falling back to direct ingestion.`,
+              );
+            }
+          }
+
+          // Fallback: Direct monolithic ingestion
           const result = await ingestRedditHighlights(env.DB, config);
           console.log(
             `[CRON] Ingestion completed in ${Date.now() - startTime}ms: fetched=${result.totalFetched}, persisted=${result.persistedCount}, skipped=${result.skippedCount}`,

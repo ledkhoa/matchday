@@ -10,6 +10,7 @@ import { handleScheduled } from './cron';
 import type { CloudflareEnv } from '../types/env';
 
 export { FixtureSyncWorkflow } from './workflows/fixture-sync';
+export { HighlightIngestWorkflow } from './workflows/highlight-ingest';
 
 /**
  * Default TanStack Start HTTP request handler.

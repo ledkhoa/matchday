@@ -17,7 +17,11 @@ import {
   type ScheduledEventPayload,
   type ScheduledExecutionContext,
 } from './cron';
-import type { CloudflareEnv, FixtureSyncWorkflowParams } from '../types/env';
+import type {
+  CloudflareEnv,
+  FixtureSyncWorkflowParams,
+  HighlightIngestWorkflowParams,
+} from '../types/env';
 
 type MetaValue =
   string | number | boolean | undefined | { sql_duration_ms: number };
@@ -198,15 +202,17 @@ class MockWorkflowInstance implements WorkflowInstance {
   async sendEvent(): Promise<void> {}
 }
 
-class MockWorkflowBinding implements Workflow<FixtureSyncWorkflowParams> {
+class MockWorkflowBinding<
+  T = FixtureSyncWorkflowParams,
+> implements Workflow<T> {
   constructor(
     private readonly createFn?: (
-      options?: WorkflowInstanceCreateOptions<FixtureSyncWorkflowParams>,
+      options?: WorkflowInstanceCreateOptions<T>,
     ) => Promise<WorkflowInstance>,
   ) {}
 
   async create(
-    options?: WorkflowInstanceCreateOptions<FixtureSyncWorkflowParams>,
+    options?: WorkflowInstanceCreateOptions<T>,
   ): Promise<WorkflowInstance> {
     if (this.createFn) {
       return this.createFn(options);
@@ -620,5 +626,152 @@ describe('handleScheduled', () => {
     await Promise.all(ctx.promises);
 
     expect(capturedUserAgent).toBe('CustomCronAgent/1.0');
+  });
+
+  it('dispatches to HIGHLIGHT_INGEST_WORKFLOW when binding is present and active matches exist', async () => {
+    const mockDb = new TestD1Database();
+    const now = Date.now();
+    mockDb.mockMatches = [
+      {
+        id: 'match-1',
+        match_date: new Date(now).toISOString().slice(0, 10),
+        team_home: 'Arsenal',
+        team_away: 'Chelsea',
+        kickoff_time: now,
+        status: '1H',
+      },
+    ];
+
+    let createdId = '';
+    let createdParams: HighlightIngestWorkflowParams | undefined;
+    const workflowBinding =
+      new MockWorkflowBinding<HighlightIngestWorkflowParams>(
+        async (options) => {
+          createdId = options?.id ?? '';
+          createdParams = options?.params;
+          return new MockWorkflowInstance(createdId);
+        },
+      );
+
+    const env: CloudflareEnv = {
+      DB: mockDb,
+      HIGHLIGHT_INGEST_WORKFLOW: workflowBinding,
+      REDDIT_USER_AGENT: 'CustomCronAgent/1.0',
+    };
+
+    let fetchCalled = false;
+    globalThis.fetch = createMockFetch(async () => {
+      fetchCalled = true;
+      return new Response('<feed></feed>', { status: 200 });
+    });
+
+    const event = new TestScheduledEvent('*/5 * * * *', now);
+    const ctx = new TestExecutionContext();
+    const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleScheduled(event, env, ctx);
+    await Promise.all(ctx.promises);
+
+    expect(createdId).toContain('highlight-ingest-');
+    expect(createdParams?.referenceTimeMs).toBe(now);
+    expect(createdParams?.userAgent).toBe('CustomCronAgent/1.0');
+    // Workflow was dispatched so direct fetch was bypassed
+    expect(fetchCalled).toBe(false);
+
+    consoleLogSpy.mockRestore();
+  });
+
+  it('gracefully handles duplicate instance conflict when creating highlight workflow', async () => {
+    const mockDb = new TestD1Database();
+    const now = Date.now();
+    mockDb.mockMatches = [
+      {
+        id: 'match-1',
+        match_date: new Date(now).toISOString().slice(0, 10),
+        team_home: 'Arsenal',
+        team_away: 'Chelsea',
+        kickoff_time: now,
+        status: '1H',
+      },
+    ];
+
+    const workflowBinding =
+      new MockWorkflowBinding<HighlightIngestWorkflowParams>(async () => {
+        throw new Error('Instance highlight-ingest-test already exists');
+      });
+
+    const env: CloudflareEnv = {
+      DB: mockDb,
+      HIGHLIGHT_INGEST_WORKFLOW: workflowBinding,
+    };
+
+    let fetchCalled = false;
+    globalThis.fetch = createMockFetch(async () => {
+      fetchCalled = true;
+      return new Response('<feed></feed>', { status: 200 });
+    });
+
+    const event = new TestScheduledEvent('*/5 * * * *', now);
+    const ctx = new TestExecutionContext();
+    const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleScheduled(event, env, ctx);
+    await Promise.all(ctx.promises);
+
+    // Should gracefully exit without fallback fetch
+    expect(fetchCalled).toBe(false);
+    expect(consoleLogSpy).toHaveBeenCalled();
+
+    consoleLogSpy.mockRestore();
+  });
+
+  it('falls back to direct ingestion when creating highlight workflow throws an unexpected error', async () => {
+    const mockDb = new TestD1Database();
+    const now = Date.now();
+    mockDb.mockMatches = [
+      {
+        id: 'match-1',
+        match_date: new Date(now).toISOString().slice(0, 10),
+        team_home: 'Arsenal',
+        team_away: 'Chelsea',
+        kickoff_time: now,
+        status: '1H',
+      },
+    ];
+
+    const workflowBinding =
+      new MockWorkflowBinding<HighlightIngestWorkflowParams>(async () => {
+        throw new Error('Unexpected Cloudflare RPC disconnect');
+      });
+
+    const env: CloudflareEnv = {
+      DB: mockDb,
+      HIGHLIGHT_INGEST_WORKFLOW: workflowBinding,
+      REDDIT_USER_AGENT: 'test-agent',
+    };
+
+    let fetchCalled = false;
+    globalThis.fetch = createMockFetch(async () => {
+      fetchCalled = true;
+      return new Response('<feed></feed>', {
+        status: 200,
+        headers: { 'Content-Type': 'application/atom+xml' },
+      });
+    });
+
+    const event = new TestScheduledEvent('*/5 * * * *', now);
+    const ctx = new TestExecutionContext();
+    const consoleWarnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+    const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleScheduled(event, env, ctx);
+    await Promise.all(ctx.promises);
+
+    // Direct fetch fallback was triggered
+    expect(fetchCalled).toBe(true);
+    expect(consoleWarnSpy).toHaveBeenCalled();
+
+    consoleWarnSpy.mockRestore();
+    consoleLogSpy.mockRestore();
   });
 });

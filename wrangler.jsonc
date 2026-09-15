@@ -25,5 +25,10 @@
       "binding": "FIXTURE_SYNC_WORKFLOW",
       "class_name": "FixtureSyncWorkflow",
     },
+    {
+      "name": "highlight-ingest-workflow",
+      "binding": "HIGHLIGHT_INGEST_WORKFLOW",
+      "class_name": "HighlightIngestWorkflow",
+    },
   ],
 }

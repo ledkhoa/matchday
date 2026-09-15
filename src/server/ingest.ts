@@ -10,7 +10,11 @@ import {
 } from '../lib/parser';
 import { matchPostToFixture } from '../lib/matcher';
 import { resolveVideoEmbed } from '../lib/video';
-import { fetchRedditPosts, type RedditClientConfig } from './reddit';
+import {
+  fetchRedditPosts,
+  type RedditClientConfig,
+  type HighlightPost,
+} from './reddit';
 
 export const KICKOFF_WINDOW_BEFORE_MS = 15 * 60 * 1000; // 15 minutes before kickoff
 export const KICKOFF_WINDOW_AFTER_MS = 4 * 60 * 60 * 1000; // 4 hours after kickoff
@@ -23,34 +27,59 @@ export interface IngestResult {
   errors: string[];
 }
 
+export interface PreparedHighlightItem {
+  id: string;
+  matchId: string;
+  title: string;
+  scoreHome: number | null;
+  scoreAway: number | null;
+  scorer: string | null;
+  minute: string | null;
+  tag: string | null;
+  embedUrl: string | null;
+  sourceUrl: string;
+  redditUrl: string;
+  goalFingerprint: string | null;
+  postedAt: number;
+}
+
+export interface MatchAndPrepareStepOutput {
+  preparedHighlights: PreparedHighlightItem[];
+  touchedMatchIds: string[];
+  parsedCount: number;
+  matchedCount: number;
+  skippedCount: number;
+}
+
+export interface PersistHighlightsStepOutput {
+  persistedCount: number;
+  touchedMatchesCount: number;
+  errors: string[];
+}
+
 type SQLiteBatchItem = BatchItem<'sqlite'>;
 
-export async function ingestRedditHighlights(
+/**
+ * Matches candidate Reddit highlight posts against tracked fixtures, validates kickoff windows,
+ * deduplicates via goal fingerprints, resolves video embeds, and prepares highlight records.
+ */
+export async function matchAndPrepareHighlights(
   d1: D1Database,
-  config?: RedditClientConfig,
-): Promise<IngestResult> {
-  const db = createDb(d1);
-  const result: IngestResult = {
-    totalFetched: 0,
+  posts: HighlightPost[],
+): Promise<MatchAndPrepareStepOutput> {
+  const result: MatchAndPrepareStepOutput = {
+    preparedHighlights: [],
+    touchedMatchIds: [],
     parsedCount: 0,
-    persistedCount: 0,
+    matchedCount: 0,
     skippedCount: 0,
-    errors: [],
   };
-
-  let posts;
-  try {
-    posts = await fetchRedditPosts(config);
-    result.totalFetched = posts.length;
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    result.errors.push(`Failed to fetch Reddit posts: ${errorMsg}`);
-    return result;
-  }
 
   if (posts.length === 0) {
     return result;
   }
+
+  const db = createDb(d1);
 
   // 1. Calculate temporal query window: [minDate - 1 day, maxDate + 1 day]
   let minUtc = Infinity;
@@ -68,39 +97,23 @@ export async function ingestRedditHighlights(
     .slice(0, 10);
 
   // 2. Query candidate fixtures from D1 within the temporal window
-  let candidates: Array<{
-    id: string;
-    matchDate: string;
-    teamHome: string;
-    teamAway: string;
-    externalId: number | null;
-    competition: string | null;
-    kickoffTime: number | null;
-  }> = [];
-
-  try {
-    candidates = await db
-      .select({
-        id: schema.matches.id,
-        matchDate: schema.matches.matchDate,
-        teamHome: schema.matches.teamHome,
-        teamAway: schema.matches.teamAway,
-        externalId: schema.matches.externalId,
-        competition: schema.matches.competition,
-        kickoffTime: schema.matches.kickoffTime,
-      })
-      .from(schema.matches)
-      .where(
-        and(
-          gte(schema.matches.matchDate, minDateStr),
-          lte(schema.matches.matchDate, maxDateStr),
-        ),
-      );
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    result.errors.push(`Failed to query candidate fixtures: ${errorMsg}`);
-    return result;
-  }
+  const candidates = await db
+    .select({
+      id: schema.matches.id,
+      matchDate: schema.matches.matchDate,
+      teamHome: schema.matches.teamHome,
+      teamAway: schema.matches.teamAway,
+      externalId: schema.matches.externalId,
+      competition: schema.matches.competition,
+      kickoffTime: schema.matches.kickoffTime,
+    })
+    .from(schema.matches)
+    .where(
+      and(
+        gte(schema.matches.matchDate, minDateStr),
+        lte(schema.matches.matchDate, maxDateStr),
+      ),
+    );
 
   // Fetch existing goal fingerprints for candidate fixtures to prevent duplicates across runs
   const existingFingerprints = new Set<string>();
@@ -122,8 +135,7 @@ export async function ingestRedditHighlights(
     }
   }
 
-  const now = Date.now();
-  const highlightInsertMap = new Map<string, schema.NewHighlight>();
+  const highlightInsertMap = new Map<string, PreparedHighlightItem>();
   const touchedMatchIds = new Set<string>();
   const inBatchFingerprints = new Set<string>();
 
@@ -210,7 +222,7 @@ export async function ingestRedditHighlights(
     const media = resolveVideoEmbed(post.url, post.permalink);
     touchedMatchIds.add(canonicalMatchId);
 
-    const highlightRecord: schema.NewHighlight = {
+    const highlightRecord: PreparedHighlightItem = {
       id: post.name,
       matchId: canonicalMatchId,
       title: post.title,
@@ -229,14 +241,38 @@ export async function ingestRedditHighlights(
     highlightInsertMap.set(post.name, highlightRecord);
   }
 
-  if (highlightInsertMap.size === 0 && touchedMatchIds.size === 0) {
+  const preparedHighlights = Array.from(highlightInsertMap.values());
+  result.preparedHighlights = preparedHighlights;
+  result.touchedMatchIds = Array.from(touchedMatchIds);
+  result.matchedCount = preparedHighlights.length;
+
+  return result;
+}
+
+/**
+ * Persists prepared highlights into Cloudflare D1 with conflict resolution, and touches match updatedAt timestamps.
+ * Statements are chunked into batches of 30 to comply with D1 batch size limits.
+ */
+export async function persistHighlightsBatch(
+  d1: D1Database,
+  highlights: PreparedHighlightItem[],
+  touchedMatchIds: string[],
+): Promise<PersistHighlightsStepOutput> {
+  const result: PersistHighlightsStepOutput = {
+    persistedCount: 0,
+    touchedMatchesCount: 0,
+    errors: [],
+  };
+
+  if (highlights.length === 0 && touchedMatchIds.length === 0) {
     return result;
   }
 
-  // 4. Build batch statements: Highlights insert/update & Matches touched updatedAt
+  const db = createDb(d1);
+  const now = Date.now();
   const statements: SQLiteBatchItem[] = [];
 
-  for (const highlight of highlightInsertMap.values()) {
+  for (const highlight of highlights) {
     statements.push(
       db
         .insert(schema.highlights)
@@ -259,7 +295,7 @@ export async function ingestRedditHighlights(
     );
   }
 
-  // Execute in chunks to respect Cloudflare D1 batch limits
+  let batchFailed = false;
   const CHUNK_SIZE = 30;
   for (let i = 0; i < statements.length; i += CHUNK_SIZE) {
     const chunk = statements.slice(i, i + CHUNK_SIZE);
@@ -269,12 +305,76 @@ export async function ingestRedditHighlights(
       // SAFETY: chunk length is verified > 0 so non-empty tuple assertion satisfies D1 batch contract
       await db.batch(chunk as [SQLiteBatchItem, ...SQLiteBatchItem[]]);
     } catch (error) {
+      batchFailed = true;
       const errorMsg = error instanceof Error ? error.message : String(error);
       result.errors.push(`D1 batch execution failed: ${errorMsg}`);
     }
   }
 
-  result.persistedCount = highlightInsertMap.size;
+  if (!batchFailed) {
+    result.persistedCount = highlights.length;
+    result.touchedMatchesCount = touchedMatchIds.length;
+  }
+
+  return result;
+}
+
+/**
+ * Monolithic ingestion handler for backward compatibility and direct execution fallback.
+ */
+export async function ingestRedditHighlights(
+  d1: D1Database,
+  config?: RedditClientConfig,
+): Promise<IngestResult> {
+  const result: IngestResult = {
+    totalFetched: 0,
+    parsedCount: 0,
+    persistedCount: 0,
+    skippedCount: 0,
+    errors: [],
+  };
+
+  let posts: HighlightPost[];
+  try {
+    posts = await fetchRedditPosts(config);
+    result.totalFetched = posts.length;
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    result.errors.push(`Failed to fetch Reddit posts: ${errorMsg}`);
+    return result;
+  }
+
+  if (posts.length === 0) {
+    return result;
+  }
+
+  let matchOutput: MatchAndPrepareStepOutput;
+  try {
+    matchOutput = await matchAndPrepareHighlights(d1, posts);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    result.errors.push(`Failed to query candidate fixtures: ${errorMsg}`);
+    return result;
+  }
+
+  result.parsedCount = matchOutput.parsedCount;
+  result.skippedCount = matchOutput.skippedCount;
+
+  if (
+    matchOutput.preparedHighlights.length === 0 &&
+    matchOutput.touchedMatchIds.length === 0
+  ) {
+    return result;
+  }
+
+  const persistOutput = await persistHighlightsBatch(
+    d1,
+    matchOutput.preparedHighlights,
+    matchOutput.touchedMatchIds,
+  );
+  result.persistedCount = persistOutput.persistedCount;
+  result.errors.push(...persistOutput.errors);
+
   return result;
 }
 
