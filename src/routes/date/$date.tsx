@@ -157,7 +157,9 @@ export function DateRouteComponent() {
         (activeLeague === 'EFL Championship' &&
           m.competition === 'Championship') ||
         (activeLeague === 'Championship' &&
-          m.competition === 'EFL Championship'),
+          m.competition === 'EFL Championship') ||
+        (activeLeague === 'EFL Cup' && m.competition === 'League Cup') ||
+        (activeLeague === 'League Cup' && m.competition === 'EFL Cup'),
     );
   }, [data.matches, activeLeague]);
 

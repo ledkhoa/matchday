@@ -26,6 +26,8 @@ describe('leagues utility', () => {
     expect(isSupportedLeague('Premier League')).toBe(true);
     expect(isSupportedLeague('Championship')).toBe(true);
     expect(isSupportedLeague('EFL Championship')).toBe(true);
+    expect(isSupportedLeague('League Cup')).toBe(true);
+    expect(isSupportedLeague('EFL Cup')).toBe(true);
     expect(isSupportedLeague('Major League Soccer')).toBe(true);
   });
 

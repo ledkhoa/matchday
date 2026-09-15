@@ -65,7 +65,7 @@ export const SUPPORTED_LEAGUES: ReadonlyMap<number, string> = new Map([
   [39, 'Premier League'],
   [40, 'Championship'],
   [45, 'FA Cup'],
-  [48, 'EFL Cup'],
+  [48, 'League Cup'],
   [2, 'UEFA Champions League'],
   [3, 'UEFA Europa League'],
   [848, 'UEFA Conference League'],

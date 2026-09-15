@@ -158,4 +158,27 @@ describe('LeagueFilter', () => {
 
     expect(onSelect).toHaveBeenCalledWith('Premier League');
   });
+
+  it('displays correct count for League Cup in supported competitions dropdown', () => {
+    const onSelect = mock();
+    const { getByLabelText, getAllByText } = render(
+      React.createElement(LeagueFilter, {
+        totalMatches: 5,
+        availableLeagues: [
+          {
+            name: 'League Cup',
+            logo: 'https://example.com/leaguecup.png',
+            count: 5,
+          },
+        ],
+        onSelectLeague: onSelect,
+      }),
+    );
+
+    const trigger = getByLabelText('View all supported competitions');
+    fireEvent.click(trigger);
+
+    const leagueCupElements = getAllByText('League Cup');
+    expect(leagueCupElements.length).toBeGreaterThanOrEqual(2);
+  });
 });

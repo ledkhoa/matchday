@@ -28,6 +28,20 @@ export interface LeagueFilterProps {
   onSelectLeague: (league?: string) => void;
 }
 
+function isLeagueMatch(a?: string, b?: string): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (
+    (a === 'Championship' && b === 'EFL Championship') ||
+    (a === 'EFL Championship' && b === 'Championship') ||
+    (a === 'League Cup' && b === 'EFL Cup') ||
+    (a === 'EFL Cup' && b === 'League Cup')
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function LeagueFilter({
   activeLeague,
   totalMatches,
@@ -43,6 +57,10 @@ export function LeagueFilter({
   const countMap = new Map<string, number>();
   for (const l of availableLeagues) {
     countMap.set(l.name, l.count);
+    if (l.name === 'Championship') countMap.set('EFL Championship', l.count);
+    if (l.name === 'EFL Championship') countMap.set('Championship', l.count);
+    if (l.name === 'League Cup') countMap.set('EFL Cup', l.count);
+    if (l.name === 'EFL Cup') countMap.set('League Cup', l.count);
   }
 
   const isAllActive = !activeLeague;
@@ -50,7 +68,7 @@ export function LeagueFilter({
   // Check if activeLeague is outside availableLeagues (e.g., filtered to a league with 0 matches)
   const isCustomActive =
     Boolean(activeLeague) &&
-    !availableLeagues.some((l) => l.name === activeLeague);
+    !availableLeagues.some((l) => isLeagueMatch(l.name, activeLeague));
 
   // Track horizontal scroll state to show/hide chevrons and apply edge-fade masks
   const updateScrollState = useCallback(() => {
@@ -166,7 +184,7 @@ export function LeagueFilter({
 
           {/* Active Day Leagues */}
           {availableLeagues.map((league) => {
-            const isSelected = activeLeague === league.name;
+            const isSelected = isLeagueMatch(activeLeague, league.name);
             return (
               <button
                 key={league.name}
@@ -292,7 +310,7 @@ export function LeagueFilter({
             </div>
             <div className="space-y-0.5">
               {SUPPORTED_LEAGUES_LIST.map((league) => {
-                const isSelected = activeLeague === league.name;
+                const isSelected = isLeagueMatch(activeLeague, league.name);
                 const matchCount = countMap.get(league.name) ?? 0;
 
                 return (

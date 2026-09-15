@@ -5,13 +5,13 @@ export interface SupportedLeague {
 }
 
 /**
- * The 14 official football competitions tracked by MatchDay.
+ * The 15 official football competitions tracked by MatchDay.
  */
 export const SUPPORTED_LEAGUES_LIST: readonly SupportedLeague[] = [
   { id: 39, name: 'Premier League', country: 'England' },
   { id: 40, name: 'Championship', country: 'England' },
   { id: 45, name: 'FA Cup', country: 'England' },
-  { id: 48, name: 'EFL Cup', country: 'England' },
+  { id: 48, name: 'League Cup', country: 'England' },
   { id: 2, name: 'UEFA Champions League', country: 'Europe' },
   { id: 3, name: 'UEFA Europa League', country: 'Europe' },
   { id: 848, name: 'UEFA Conference League', country: 'Europe' },
@@ -38,6 +38,8 @@ export function isSupportedLeague(
   return (
     SUPPORTED_LEAGUE_NAMES.includes(name) ||
     name === 'EFL Championship' ||
-    name === 'Championship'
+    name === 'Championship' ||
+    name === 'EFL Cup' ||
+    name === 'League Cup'
   );
 }

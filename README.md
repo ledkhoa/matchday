@@ -8,7 +8,7 @@
 
 - 📅 **Daily Fixture & Highlight Feed**: Browse daily fixtures by date with interactive previous/next navigation, quick "Today" jump, and a calendar date picker.
 - ⏱️ **Client-Local Kickoff & Day Bucketing**: Group matches and display kickoff times in the viewer's local timezone (12-hour AM/PM format), ensuring evening games appear on the day they were played locally.
-- 🏆 **15 Supported Competitions**: Premier League, EFL Championship, UEFA Champions League, UEFA Europa League, UEFA Conference League, La Liga, Serie A, Bundesliga, Ligue 1, Major League Soccer, FA Cup, EFL Cup, Copa del Rey, DFB-Pokal, and Coppa Italia.
+- 🏆 **15 Supported Competitions**: Premier League, EFL Championship, UEFA Champions League, UEFA Europa League, UEFA Conference League, La Liga, Serie A, Bundesliga, Ligue 1, Major League Soccer, FA Cup, League Cup, Copa del Rey, DFB-Pokal, and Coppa Italia.
 - 🛡️ **Club Crests & League Branding**: High-resolution official logos and club crests with layout-shift-free containers and fallback avatar monograms.
 - 🎯 **Client-Side League Filtering**: Filter daily feeds by competition with dynamic match counts and quick toggle pills.
 - 🎬 **Inline Video Highlight Player**:
