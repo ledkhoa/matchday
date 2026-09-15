@@ -6,13 +6,18 @@ import type {
   D1ExecResult,
   D1DatabaseSession,
   D1Meta,
+  Workflow,
+  WorkflowInstance,
+  InstanceStatus,
+  WorkflowInstanceCreateOptions,
+  WorkflowBatchDeleteResult,
 } from '@cloudflare/workers-types';
 import {
   handleScheduled,
   type ScheduledEventPayload,
   type ScheduledExecutionContext,
 } from './cron';
-import type { CloudflareEnv } from '../types/env';
+import type { CloudflareEnv, FixtureSyncWorkflowParams } from '../types/env';
 
 type MetaValue =
   string | number | boolean | undefined | { sql_duration_ms: number };
@@ -177,6 +182,51 @@ function createMockFetch(
   );
 }
 
+class MockWorkflowInstance implements WorkflowInstance {
+  constructor(
+    public id: string,
+    public currentStatus: InstanceStatus = { status: 'running' },
+  ) {}
+  async pause(): Promise<void> {}
+  async resume(): Promise<void> {}
+  async terminate(): Promise<void> {}
+  async restart(): Promise<void> {}
+  async delete(): Promise<void> {}
+  async status(): Promise<InstanceStatus> {
+    return this.currentStatus;
+  }
+  async sendEvent(): Promise<void> {}
+}
+
+class MockWorkflowBinding implements Workflow<FixtureSyncWorkflowParams> {
+  constructor(
+    private readonly createFn?: (
+      options?: WorkflowInstanceCreateOptions<FixtureSyncWorkflowParams>,
+    ) => Promise<WorkflowInstance>,
+  ) {}
+
+  async create(
+    options?: WorkflowInstanceCreateOptions<FixtureSyncWorkflowParams>,
+  ): Promise<WorkflowInstance> {
+    if (this.createFn) {
+      return this.createFn(options);
+    }
+    return new MockWorkflowInstance(options?.id ?? 'wf-default');
+  }
+
+  async get(id: string): Promise<WorkflowInstance> {
+    return new MockWorkflowInstance(id);
+  }
+
+  async createBatch(): Promise<WorkflowInstance[]> {
+    return [];
+  }
+
+  async deleteBatch(): Promise<WorkflowBatchDeleteResult> {
+    return { deleted: [], errors: [] };
+  }
+}
+
 describe('handleScheduled', () => {
   const originalFetch = globalThis.fetch;
 
@@ -235,6 +285,161 @@ describe('handleScheduled', () => {
       ),
     ).toBe(true);
     expect(consoleLogSpy).toHaveBeenCalled();
+    consoleLogSpy.mockRestore();
+  });
+
+  it('dispatches to FIXTURE_SYNC_WORKFLOW with deterministic instance ID when binding is present', async () => {
+    const mockDb = new TestD1Database();
+    const createdCalls: Array<
+      WorkflowInstanceCreateOptions<FixtureSyncWorkflowParams> | undefined
+    > = [];
+
+    const mockWorkflow = new MockWorkflowBinding(async (options) => {
+      createdCalls.push(options);
+      return new MockWorkflowInstance(options?.id ?? 'wf-default');
+    });
+
+    const env: CloudflareEnv = {
+      DB: mockDb,
+      API_FOOTBALL_KEY: 'test-api-key',
+      FIXTURE_SYNC_WORKFLOW: mockWorkflow,
+    };
+
+    let directFetchCalled = false;
+    globalThis.fetch = createMockFetch(async () => {
+      directFetchCalled = true;
+      return new Response(JSON.stringify({ response: [] }), { status: 200 });
+    });
+
+    const scheduledDate = new Date('2026-09-15T00:00:00Z');
+    const event = new TestScheduledEvent('0 0 * * *', scheduledDate.getTime());
+    const ctx = new TestExecutionContext();
+
+    const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleScheduled(event, env, ctx);
+    await Promise.all(ctx.promises);
+
+    expect(createdCalls.length).toBe(1);
+    expect(createdCalls[0]?.id).toBe('fixture-sync-2026-09-15');
+    expect(createdCalls[0]?.params).toEqual({
+      date: '2026-09-15',
+      reconcileHighlights: true,
+    });
+    // Ensure direct fetch was NOT called because workflow was dispatched
+    expect(directFetchCalled).toBe(false);
+
+    consoleLogSpy.mockRestore();
+  });
+
+  it('handles duplicate workflow instance conflict gracefully without throwing', async () => {
+    const mockDb = new TestD1Database();
+    const mockWorkflow = new MockWorkflowBinding(async (options) => {
+      throw new Error(
+        `Workflow instance '${options?.id}' already exists and is running`,
+      );
+    });
+
+    const env: CloudflareEnv = {
+      DB: mockDb,
+      API_FOOTBALL_KEY: 'test-api-key',
+      FIXTURE_SYNC_WORKFLOW: mockWorkflow,
+    };
+
+    let directFetchCalled = false;
+    globalThis.fetch = createMockFetch(async () => {
+      directFetchCalled = true;
+      return new Response(JSON.stringify({ response: [] }), { status: 200 });
+    });
+
+    const scheduledDate = new Date('2026-09-15T00:00:00Z');
+    const event = new TestScheduledEvent('0 0 * * *', scheduledDate.getTime());
+    const ctx = new TestExecutionContext();
+
+    const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleScheduled(event, env, ctx);
+    await expect(Promise.all(ctx.promises)).resolves.toBeDefined();
+
+    // Direct sync should not run when duplicate workflow is skipped
+    expect(directFetchCalled).toBe(false);
+
+    consoleLogSpy.mockRestore();
+  });
+
+  it('falls back to direct sync when workflow creation fails with unexpected error', async () => {
+    const mockDb = new TestD1Database();
+    const mockWorkflow = new MockWorkflowBinding(async () => {
+      throw new Error('Cloudflare Workflows RPC internal outage');
+    });
+
+    const env: CloudflareEnv = {
+      DB: mockDb,
+      API_FOOTBALL_KEY: 'test-api-key',
+      FIXTURE_SYNC_WORKFLOW: mockWorkflow,
+    };
+
+    const requestedUrls: string[] = [];
+    globalThis.fetch = createMockFetch(async (input) => {
+      requestedUrls.push(String(input));
+      return new Response(JSON.stringify({ response: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    const scheduledDate = new Date('2026-09-15T00:00:00Z');
+    const event = new TestScheduledEvent('0 0 * * *', scheduledDate.getTime());
+    const ctx = new TestExecutionContext();
+
+    const consoleWarnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+    const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleScheduled(event, env, ctx);
+    await Promise.all(ctx.promises);
+
+    expect(consoleWarnSpy).toHaveBeenCalled();
+    // Direct sync fallback should execute for both dates
+    expect(requestedUrls.length).toBe(2);
+
+    consoleWarnSpy.mockRestore();
+    consoleLogSpy.mockRestore();
+  });
+
+  it('does not invoke fixture sync when cron is "*/5 * * * *" even at midnight UTC', async () => {
+    const mockDb = new TestD1Database();
+    mockDb.mockMatches = [];
+    const env: CloudflareEnv = {
+      DB: mockDb,
+      API_FOOTBALL_KEY: 'test-api-key',
+      REDDIT_USER_AGENT: 'test-agent',
+    };
+
+    const requestedUrls: string[] = [];
+    globalThis.fetch = createMockFetch(async (input) => {
+      requestedUrls.push(String(input));
+      return new Response(JSON.stringify({ response: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    // Exactly 00:00:00 UTC
+    const midnightUtc = Date.UTC(2026, 8, 15, 0, 0, 0);
+    const event = new TestScheduledEvent('*/5 * * * *', midnightUtc);
+    const ctx = new TestExecutionContext();
+
+    const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleScheduled(event, env, ctx);
+    expect(ctx.promises.length).toBe(1);
+    await Promise.all(ctx.promises);
+
+    // Ensure NO API-Football calls were dispatched
+    expect(
+      requestedUrls.some((url) => url.includes('v3.football.api-sports.io')),
+    ).toBe(false);
+
     consoleLogSpy.mockRestore();
   });
 

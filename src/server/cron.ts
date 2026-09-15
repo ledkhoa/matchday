@@ -41,10 +41,7 @@ export async function handleScheduled(
 
       try {
         const scheduledDate = new Date(event.scheduledTime || Date.now());
-        const isMidnight =
-          event.cron === '0 0 * * *' ||
-          (scheduledDate.getUTCHours() === 0 &&
-            scheduledDate.getUTCMinutes() === 0);
+        const isMidnight = event.cron === '0 0 * * *';
 
         if (isMidnight) {
           // Midnight UTC: Sync daily official fixtures for today and yesterday.
@@ -68,6 +65,33 @@ export async function handleScheduled(
             .toISOString()
             .slice(0, 10);
 
+          // If Cloudflare Workflow binding is present, trigger durable workflow
+          if (env.FIXTURE_SYNC_WORKFLOW) {
+            const instanceId = `fixture-sync-${today}`;
+            try {
+              const instance = await env.FIXTURE_SYNC_WORKFLOW.create({
+                id: instanceId,
+                params: { date: today, reconcileHighlights: true },
+              });
+              console.log(
+                `[CRON] Started FixtureSyncWorkflow instance: ${instance.id}`,
+              );
+              return;
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              if (msg.includes('already exists') || msg.includes('conflict')) {
+                console.log(
+                  `[CRON] Workflow instance ${instanceId} already exists; skipping duplicate trigger.`,
+                );
+                return;
+              }
+              console.warn(
+                `[CRON] Failed to create workflow instance (${msg}), falling back to direct sync.`,
+              );
+            }
+          }
+
+          // Fallback: Direct monolithic sync
           // 1. Sync today's fixtures
           const todayResult = await syncDailyFixtures(
             env.DB,
@@ -102,7 +126,7 @@ export async function handleScheduled(
           }
 
           console.log(
-            `[CRON] Midnight fixture sync process finished in ${Date.now() - startTime}ms`,
+            `[CRON] Direct sync finished in ${Date.now() - startTime}ms`,
           );
         } else {
           // Default / 5-minute trigger ("*/5 * * * *"): Ingest Reddit highlights

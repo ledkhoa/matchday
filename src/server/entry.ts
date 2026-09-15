@@ -9,6 +9,8 @@ import type {
 import { handleScheduled } from './cron';
 import type { CloudflareEnv } from '../types/env';
 
+export { FixtureSyncWorkflow } from './workflows/fixture-sync';
+
 /**
  * Default TanStack Start HTTP request handler.
  * Handles SSR, streaming HTML responses, client RPC server functions,

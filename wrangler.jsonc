@@ -19,4 +19,11 @@
       "migrations_dir": "migrations",
     },
   ],
+  "workflows": [
+    {
+      "name": "fixture-sync-workflow",
+      "binding": "FIXTURE_SYNC_WORKFLOW",
+      "class_name": "FixtureSyncWorkflow",
+    },
+  ],
 }

@@ -7,9 +7,14 @@ import type {
   D1ExecResult,
   D1DatabaseSession,
   D1Meta,
+  Workflow,
+  WorkflowInstance,
+  InstanceStatus,
+  WorkflowInstanceCreateOptions,
+  WorkflowBatchDeleteResult,
 } from '@cloudflare/workers-types';
 import { handleFixturesPost, postServerHandler, Route } from './fixtures';
-import type { CloudflareEnv } from '../../types/env';
+import type { CloudflareEnv, FixtureSyncWorkflowParams } from '../../types/env';
 
 type MetaValue =
   string | number | boolean | undefined | { sql_duration_ms: number };
@@ -140,6 +145,51 @@ const SuccessResponseSchema = z.object({
     .optional(),
   durationMs: z.number(),
 });
+
+class MockWorkflowInstance implements WorkflowInstance {
+  constructor(
+    public id: string,
+    public currentStatus: InstanceStatus = { status: 'running' },
+  ) {}
+  async pause(): Promise<void> {}
+  async resume(): Promise<void> {}
+  async terminate(): Promise<void> {}
+  async restart(): Promise<void> {}
+  async delete(): Promise<void> {}
+  async status(): Promise<InstanceStatus> {
+    return this.currentStatus;
+  }
+  async sendEvent(): Promise<void> {}
+}
+
+class MockWorkflowBinding implements Workflow<FixtureSyncWorkflowParams> {
+  constructor(
+    private readonly createFn?: (
+      options?: WorkflowInstanceCreateOptions<FixtureSyncWorkflowParams>,
+    ) => Promise<WorkflowInstance>,
+  ) {}
+
+  async create(
+    options?: WorkflowInstanceCreateOptions<FixtureSyncWorkflowParams>,
+  ): Promise<WorkflowInstance> {
+    if (this.createFn) {
+      return this.createFn(options);
+    }
+    return new MockWorkflowInstance(options?.id ?? 'wf-manual-1');
+  }
+
+  async get(id: string): Promise<WorkflowInstance> {
+    return new MockWorkflowInstance(id);
+  }
+
+  async createBatch(): Promise<WorkflowInstance[]> {
+    return [];
+  }
+
+  async deleteBatch(): Promise<WorkflowBatchDeleteResult> {
+    return { deleted: [], errors: [] };
+  }
+}
 
 describe('/api/fixtures handler', () => {
   const originalFetch = globalThis.fetch;
@@ -446,5 +496,99 @@ describe('/api/fixtures handler', () => {
       context: { env },
     });
     expect(response.status).toBe(401);
+  });
+
+  it('dispatches to FIXTURE_SYNC_WORKFLOW when binding is present', async () => {
+    const createdCalls: Array<
+      WorkflowInstanceCreateOptions<FixtureSyncWorkflowParams> | undefined
+    > = [];
+    const mockWorkflow = new MockWorkflowBinding(async (options) => {
+      createdCalls.push(options);
+      return new MockWorkflowInstance(options?.id ?? 'wf-manual-1');
+    });
+
+    const env: CloudflareEnv = {
+      DB: new TestD1Database(),
+      CRON_SECRET: 'super-secret',
+      API_FOOTBALL_KEY: 'test-api-key',
+      FIXTURE_SYNC_WORKFLOW: mockWorkflow,
+    };
+
+    const request = new Request('http://localhost/api/fixtures', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer super-secret',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        date: '2026-09-12',
+        instanceId: 'custom-wf-123',
+        reconcileHighlights: false,
+      }),
+    });
+
+    const response = await handleFixturesPost(request, { env });
+    expect(response.status).toBe(200);
+
+    // SAFETY: Response JSON conforms to FixturesWorkflowSuccessResponse schema
+    const json = (await response.json()) as {
+      success: boolean;
+      mode: string;
+      instanceId: string;
+      date: string;
+      previousDate: string;
+    };
+    expect(json.success).toBe(true);
+    expect(json.mode).toBe('workflow');
+    expect(json.instanceId).toBe('custom-wf-123');
+    expect(json.date).toBe('2026-09-12');
+    expect(json.previousDate).toBe('2026-09-11');
+    expect(createdCalls.length).toBe(1);
+    expect(createdCalls[0]?.id).toBe('custom-wf-123');
+    expect(createdCalls[0]?.params).toEqual({
+      date: '2026-09-12',
+      reconcileHighlights: false,
+    });
+  });
+
+  it('returns 409 conflict when workflow instance already exists', async () => {
+    const mockWorkflow = new MockWorkflowBinding(async (options) => {
+      throw new Error(
+        `instance with id '${options?.id}' already exists in workflow`,
+      );
+    });
+
+    const env: CloudflareEnv = {
+      DB: new TestD1Database(),
+      CRON_SECRET: 'super-secret',
+      API_FOOTBALL_KEY: 'test-api-key',
+      FIXTURE_SYNC_WORKFLOW: mockWorkflow,
+    };
+
+    const request = new Request('http://localhost/api/fixtures', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer super-secret',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        date: '2026-09-12',
+        instanceId: 'duplicate-instance-id',
+      }),
+    });
+
+    const response = await handleFixturesPost(request, { env });
+    expect(response.status).toBe(409);
+
+    // SAFETY: Response JSON conforms to FixturesErrorResponse schema
+    const json = (await response.json()) as {
+      success: boolean;
+      error: string;
+      details: string;
+    };
+
+    expect(json.success).toBe(false);
+    expect(json.error).toBe('Workflow instance already exists');
+    expect(json.details).toContain('duplicate-instance-id');
   });
 });

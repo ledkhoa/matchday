@@ -8,16 +8,31 @@ import type { CloudflareEnv } from '../../types/env';
 
 const FixturesRequestBodySchema = z.object({
   date: z.string().optional(),
+  instanceId: z.string().optional(),
+  reconcileHighlights: z.boolean().optional(),
 });
 
-interface FixturesSuccessResponse {
+interface FixturesDirectSuccessResponse {
   success: true;
+  mode?: 'direct';
   date: string;
   previousDate: string;
   summary: FixtureSyncResult;
   previousDaySummary: FixtureSyncResult;
   durationMs: number;
 }
+
+interface FixturesWorkflowSuccessResponse {
+  success: true;
+  mode: 'workflow';
+  instanceId: string;
+  date: string;
+  previousDate: string;
+  durationMs: number;
+}
+
+export type FixturesSuccessResponse =
+  FixturesDirectSuccessResponse | FixturesWorkflowSuccessResponse;
 
 interface FixturesErrorResponse {
   success: false;
@@ -59,6 +74,9 @@ export async function handleFixturesPost(
 
   // 3. Parse and validate optional target date
   let targetDate = new Date().toISOString().slice(0, 10);
+  let customInstanceId: string | undefined = undefined;
+  let customReconcileHighlights: boolean | undefined = undefined;
+
   if (request.body) {
     try {
       const cloned = request.clone();
@@ -66,19 +84,27 @@ export async function handleFixturesPost(
       if (text && text.trim().length > 0) {
         const json: unknown = JSON.parse(text);
         const parsed = FixturesRequestBodySchema.safeParse(json);
-        if (parsed.success && parsed.data.date) {
-          const dateStr = parsed.data.date.trim();
-          if (!ISO_DATE_REGEX.test(dateStr) || isNaN(Date.parse(dateStr))) {
-            const body: FixturesErrorResponse = {
-              success: false,
-              error: 'Invalid date format. Expected YYYY-MM-DD',
-            };
-            return new Response(JSON.stringify(body), {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            });
+        if (parsed.success) {
+          if (parsed.data.date) {
+            const dateStr = parsed.data.date.trim();
+            if (!ISO_DATE_REGEX.test(dateStr) || isNaN(Date.parse(dateStr))) {
+              const body: FixturesErrorResponse = {
+                success: false,
+                error: 'Invalid date format. Expected YYYY-MM-DD',
+              };
+              return new Response(JSON.stringify(body), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' },
+              });
+            }
+            targetDate = dateStr;
           }
-          targetDate = dateStr;
+          if (parsed.data.instanceId) {
+            customInstanceId = parsed.data.instanceId.trim();
+          }
+          if (parsed.data.reconcileHighlights !== undefined) {
+            customReconcileHighlights = parsed.data.reconcileHighlights;
+          }
         }
       }
     } catch {
@@ -120,6 +146,55 @@ export async function handleFixturesPost(
       .toISOString()
       .slice(0, 10);
 
+    // If Cloudflare Workflow binding is present, trigger durable workflow
+    if (env.FIXTURE_SYNC_WORKFLOW) {
+      const instanceId =
+        customInstanceId || `fixture-sync-${targetDate}-manual-${Date.now()}`;
+
+      try {
+        const instance = await env.FIXTURE_SYNC_WORKFLOW.create({
+          id: instanceId,
+          params: {
+            date: targetDate,
+            reconcileHighlights: customReconcileHighlights ?? true,
+          },
+        });
+
+        const durationMs = Date.now() - startTime;
+        console.log(
+          `[API:FIXTURES] Dispatched FixtureSyncWorkflow instance: ${instance.id} for date: ${targetDate}`,
+        );
+
+        const body: FixturesWorkflowSuccessResponse = {
+          success: true,
+          mode: 'workflow',
+          instanceId: instance.id,
+          date: targetDate,
+          previousDate: yesterdayDate,
+          durationMs,
+        };
+
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('already exists') || msg.includes('conflict')) {
+          const body: FixturesErrorResponse = {
+            success: false,
+            error: 'Workflow instance already exists',
+            details: `Instance ID '${instanceId}' already exists`,
+          };
+          return new Response(JSON.stringify(body), {
+            status: 409,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        throw err;
+      }
+    }
+
     console.log(
       `[API:FIXTURES] Fixture sync started for target date: ${targetDate} and previous day: ${yesterdayDate}`,
     );
@@ -135,8 +210,9 @@ export async function handleFixturesPost(
       `[API:FIXTURES] Fixture sync concluded in ${durationMs}ms: todayFound=${summary.supportedFound}, todayPersisted=${summary.persistedCount}, prevFound=${previousDaySummary.supportedFound}, prevPersisted=${previousDaySummary.persistedCount}`,
     );
 
-    const body: FixturesSuccessResponse = {
+    const body: FixturesDirectSuccessResponse = {
       success: true,
+      mode: 'direct',
       date: targetDate,
       previousDate: yesterdayDate,
       summary,

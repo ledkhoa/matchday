@@ -1,7 +1,11 @@
-import type { D1Database } from '@cloudflare/workers-types';
+import type { D1Database, Workflow } from '@cloudflare/workers-types';
+import type { FixtureSyncWorkflowParams } from '../server/workflows/fixture-sync';
+
+export type { FixtureSyncWorkflowParams };
 
 export interface CloudflareEnv {
   DB: D1Database;
+  FIXTURE_SYNC_WORKFLOW?: Workflow<FixtureSyncWorkflowParams>;
   CRON_SECRET?: string;
   API_FOOTBALL_KEY?: string;
   REDDIT_CLIENT_ID?: string;
